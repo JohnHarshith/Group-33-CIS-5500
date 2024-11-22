@@ -1,0 +1,16 @@
+{
+  "song": {
+    "song_id": "0kN3oXYWWAk1uC0y2WoyOE",
+    "album_id": "43OpbkiiIxJO8ktIB777Nn",
+    "title": "Love Story",
+    "number": 9,
+    "duration": 235,
+    "plays": 639407309,
+    "danceability": 0.618,
+    "energy": 0.736,
+    "valence": 0.307,
+    "tempo": 119,
+    "key_mode": "D major",
+    "explicit": 0
+  }
+}
