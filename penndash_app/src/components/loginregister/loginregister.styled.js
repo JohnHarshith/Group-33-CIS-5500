@@ -43,7 +43,7 @@ export const Tab = styled.button`
 `;
 
 export const Input = styled.input`
-  width: 100%;
+  width: 42vh;
   padding: 10px;
   margin: 10px 0;
   font-size: 14px;

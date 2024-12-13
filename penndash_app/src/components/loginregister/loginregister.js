@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FcGoogle } from 'react-icons/fc'; // Google Icon
-import { BsMicrosoft } from 'react-icons/bs'; // Microsoft Icon
+import { FcGoogle } from 'react-icons/fc';
+import { BsMicrosoft } from 'react-icons/bs';
 import {
   LoginRegisterWrapper,
   FormContainer,
@@ -14,7 +14,7 @@ import {
   IconButton,
 } from './loginregister.styled';
 
-const LoginRegister = () => {
+const LoginRegister = ({ setUser }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +22,6 @@ const LoginRegister = () => {
   const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
 
   const passwordCriteria = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
 
   const toggleForm = () => {
     setIsLogin(!isLogin);
@@ -64,11 +63,12 @@ const LoginRegister = () => {
       return;
     }
   
-    if (!isLogin) {
-      const username = document.querySelector('input[placeholder="Username"]').value;
-      const email = document.querySelector('input[placeholder="Email Address"]').value;
+    try {
+      if (!isLogin) {
+        // Handle registration
+        const username = document.querySelector('input[placeholder="Username"]').value;
+        const email = document.querySelector('input[placeholder="Email Address"]').value;
   
-      try {
         const response = await fetch('http://localhost:8080/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,19 +76,22 @@ const LoginRegister = () => {
         });
   
         if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('username', username); // Save new username
+          localStorage.setItem('user_id', data.user.user_id); // Save user ID
           alert('Registration successful! Redirecting...');
-          // Redirect to the home page or display a success message
           window.location.href = '/home';
         } else {
           const error = await response.json();
-          alert(`Error: ${error.error}`);
+          alert(`Registration failed: ${error.error}`);
         }
-      } catch (err) {
-        console.error('Registration failed:', err);
-        alert('Failed to register. Please try again.');
+      } else {
+        // Login functionality not available; prompt the user
+        alert('Login functionality is not implemented yet.');
       }
-    } else {
-      console.log('Logging in...');
+    } catch (err) {
+      console.error('Error:', err);
+      alert('An error occurred. Please try again.');
     }
   };  
 

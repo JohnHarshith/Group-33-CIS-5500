@@ -68,20 +68,20 @@ const registerUser = async (req, res) => {
 };
 
 const logoutUser = async (req, res) => {
-  const { user_id } = req.body;
+  const { username } = req.body;
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'User ID is required.' });
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required.' });
   }
 
   try {
     const query = `
       UPDATE users
       SET last_login = CURRENT_TIMESTAMP
-      WHERE user_id = $1
+      WHERE username = $1
       RETURNING last_login;
     `;
-    const result = await connection.query(query, [user_id]);
+    const result = await connection.query(query, [username]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found.' });
