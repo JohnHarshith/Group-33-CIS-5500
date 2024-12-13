@@ -1,9 +1,9 @@
 {
-  "rds_host": "",
+  "rds_host": "databasegroup33.cfr6hisql5vi.us-east-1.rds.amazonaws.com",
   "rds_port": "5432",
   "rds_user": "",
   "rds_password": "",
-  "rds_db": "swiftify",
+  "rds_db": "penndash",
   "server_host": "localhost",
   "server_port": "8080"
 }
