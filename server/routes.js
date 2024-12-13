@@ -94,9 +94,29 @@ const logoutUser = async (req, res) => {
   }
 };
 
+const checkUsername = async (req, res) => {
+  console.log('Check username called with:', req.body);
+
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required.' });
+  }
+
+  try {
+    const query = 'SELECT COUNT(*) FROM users WHERE username = $3';
+    const result = await connection.query(query, [username]);
+    const exists = parseInt(result.rows[0].count, 10) > 0;
+    res.status(200).json({ exists });
+  } catch (error) {
+    console.error('Error checking username:', error);
+    res.status(500).json({ error: 'Failed to check username.' });
+  }
+};
+
 // Export routes and individual handlers
 module.exports = {
   sample: async (req, res) => res.status(200).json({ key: 'value' }),
   registerUser,
   logoutUser,
+  checkUsername
 };

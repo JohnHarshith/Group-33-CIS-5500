@@ -174,7 +174,6 @@ const Home = () => {
   return (
     <Wrapper>
       <Header>
-        <Logo>PennDash</Logo>
         <Profile ref={profileRef}>
           <ProfileDetails onClick={toggleProfileDropdown}>
             <ProfileName>{username}</ProfileName>

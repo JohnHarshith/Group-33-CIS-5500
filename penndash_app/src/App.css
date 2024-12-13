@@ -2,13 +2,6 @@
   text-align: center;
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* Disables scrolling */
-  height: 100%; /* Ensures the height is 100% of the viewport */
-}
-
 
 .App-logo {
   height: 40vmin;

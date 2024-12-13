@@ -17,6 +17,7 @@ app.use(bodyParser.json());
 app.get('/sample', routes.sample); // Sample endpoint
 app.post('/register', routes.registerUser); // Endpoint for user registration
 app.post('/logout', routes.logoutUser); // Endpoint for user logout
+app.post('/checkusername', routes.checkUsername);
 
 // Start the server
 const PORT = process.env.SERVER_PORT || 3000;
