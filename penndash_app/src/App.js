@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginRegister from './components/loginregister/loginregister';
 import './App.css';
+import Home from './components/home/home';
+import Logout from './components/logout/logout';
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
         {/* Routes */}
         <Routes>
           <Route path="/" element={<LoginRegister />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/logout" element={<Logout />} />
         </Routes>
 
         {/* Footer */}
