@@ -1,8 +1,9 @@
 const express = require('express');
 const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid'); // To generate random user_id
-require('dotenv').config(); // Load environment variables
+const { v4: uuidv4 } = require('uuid'); 
+const jwt = require('jsonwebtoken');
+require('dotenv').config(); 
 
 // Initialize express router
 const router = express.Router();
@@ -91,6 +92,334 @@ const logoutUser = async (req, res) => {
   } catch (error) {
     console.error('Error during logout:', error);
     res.status(500).json({ error: 'Failed to log out user.' });
+  }
+};
+
+const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  // Validate input
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  try {
+    // Check if the user exists
+    const query = `
+      SELECT user_id, email, username, password_hash
+      FROM users
+      WHERE email = $1;
+    `;
+    const result = await connection.query(query, [email]);
+
+    if (result.rowCount === 0) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    const user = result.rows[0];
+
+    // Compare the provided password with the stored password hash
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    // Generate a session token (or JWT)
+    const token = jwt.sign(
+      { userId: user.user_id, email: user.email, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' } // Adjust expiration as needed
+    );
+
+    // Optionally update the last login time in the database
+    const updateQuery = `
+      UPDATE users
+      SET last_login = CURRENT_TIMESTAMP
+      WHERE user_id = $1;
+    `;
+    await connection.query(updateQuery, [user.user_id]);
+
+    // Respond with the session token and user data
+    res.status(200).json({
+      message: 'Login successful.',
+      token,
+      user: {
+        user_id: user.user_id,
+        email: user.email,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error('Error during login:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to log in user.' });
+  }
+};
+
+const getUniqueCities = async (req, res) => {
+  try {
+    // Query to fetch all unique cities from the business_locations table
+    const query = `
+      SELECT DISTINCT city
+      FROM business_locations
+      ORDER BY city;
+    `;
+    const result = await connection.query(query);
+
+    // Extract cities from the query result
+    const cities = result.rows.map(row => row.city);
+
+    res.status(200).json({ cities });
+  } catch (error) {
+    console.error('Error fetching unique cities:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch unique cities.' });
+  }
+};
+
+const getUniqueCuisine = async (req, res) => {
+  try {
+    // Query to fetch all unique cities from the business_locations table
+    const query = `
+      SELECT DISTINCT cuisine
+      FROM normalized_businesses
+      ORDER BY cuisine;
+    `;
+    const result = await connection.query(query);
+
+    const cuisines = result.rows.map(row => row.cuisine);
+
+    res.status(200).json({ cuisines });
+  } catch (error) {
+    console.error('Error fetching unique cuisines:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch unique cuisines.' });
+  }
+};
+
+const getRestaurants = async (req, res) => {
+  try {
+    // Get current EST timestamp
+    const now = new Date();
+    const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const currentDay = estTime.toLocaleString('en-US', { weekday: 'long' }); // e.g., "Monday"
+    const currentTime = estTime.toTimeString().slice(0, 8); // HH:MM:SS format
+
+    // Get pagination parameters from query string
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Query to fetch all restaurant details by joining the required tables
+    const query = `
+      SELECT 
+        nb.business_id,
+        nb.name,
+        nb.stars,
+        nb.review_count,
+        nb.categories,
+        nb.cuisine,
+        bl.city,
+        json_agg(
+          json_build_object(
+            'day_of_week', nbh.day_of_week,
+            'open_time', nbh.open_time,
+            'close_time', nbh.close_time
+          ) ORDER BY nbh.day_of_week
+        ) AS hours
+      FROM 
+        normalized_businesses nb
+      JOIN 
+        business_locations bl
+      ON 
+        nb.location_id = bl.location_id
+      JOIN 
+        normalized_business_hours nbh
+      ON 
+        nb.business_id = nbh.business_id
+      WHERE 
+        nb.categories ILIKE '%Restaurants%'
+      GROUP BY 
+        nb.business_id, bl.city
+      ORDER BY 
+        nb.name
+      LIMIT $1 OFFSET $2;
+    `;
+
+    const result = await connection.query(query, [limit, offset]);
+
+    // Map categories from a semicolon-separated string to a list and calculate isOpen
+    const restaurants = result.rows.map(row => {
+      const isOpen = row.hours.some(hour => 
+        hour.day_of_week === currentDay &&
+        hour.open_time <= currentTime &&
+        hour.close_time >= currentTime
+      );
+
+      return {
+        business_id: row.business_id,
+        name: row.name,
+        stars: row.stars,
+        review_count: row.review_count,
+        categories: row.categories.split(';'),
+        cuisine: row.cuisine,
+        city: row.city,
+        isOpen,
+      };
+    });
+
+    res.status(200).json({ page: Number(page), limit: Number(limit), restaurants });
+  } catch (error) {
+    console.error('Error fetching restaurant details:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch restaurant details.' });
+  }
+};
+
+const getRestaurantDetails = async (req, res) => {
+  const { business_id } = req.query;
+
+  console.log(business_id);
+
+  try {
+    // Query to fetch restaurant details
+    const restaurantQuery = `
+      SELECT 
+        nb.name AS restaurant_name,
+        CONCAT(bl.address, ', ', bl.city, ', ', bl.state, ', ', bl.postal_code) AS address,
+        nb.cuisine,
+        nb.stars,
+        json_build_object(
+          'wifi', nba.wifi,
+          'outdoor_seating', nba.outdoor_seating,
+          'parking_garage', nba.parking_garage,
+          'parking_street', nba.parking_street,
+          'parking_validated', nba.parking_validated,
+          'parking_lot', nba.parking_lot,
+          'parking_valet', nba.parking_valet,
+          'good_for_groups', nba.good_for_groups,
+          'alcohol', nba.alcohol,
+          'price_range', nba.price_range,
+          'noise_level', nba.noise_level,
+          'wheelchair_accessible', nba.wheelchair_accessible,
+          'has_tv', nba.has_tv
+        ) AS amenities,
+        json_agg(
+          json_build_object(
+            'day_of_week', nbh.day_of_week,
+            'open_time', nbh.open_time,
+            'close_time', nbh.close_time
+          ) ORDER BY nbh.day_of_week
+        ) AS business_hours
+      FROM 
+        normalized_businesses nb
+      JOIN 
+        business_locations bl
+      ON 
+        nb.location_id = bl.location_id
+      JOIN 
+        normalized_business_attributes nba
+      ON 
+        nb.business_id = nba.business_id
+      JOIN 
+        normalized_business_hours nbh
+      ON 
+        nb.business_id = nbh.business_id
+      WHERE 
+        nb.business_id = $1
+      GROUP BY 
+        nb.business_id, bl.address, bl.city, bl.state, bl.postal_code, nba.business_id;
+    `;
+
+    const restaurantResult = await connection.query(restaurantQuery, [business_id]);
+
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found.' });
+    }
+
+    const restaurant = restaurantResult.rows[0];
+
+    // Query to fetch reviews
+    const reviewsQuery = `
+      SELECT 
+        u.username AS user_name,
+        ur.stars AS review_star,
+        ur.review_date,
+        ur.review_text
+      FROM 
+        normalized_user_reviews ur
+      JOIN 
+        users u
+      ON 
+        ur.user_id = u.user_id
+      WHERE 
+        ur.business_id = $1
+      ORDER BY 
+        ur.review_date DESC;
+    `;
+
+    const reviewsResult = await connection.query(reviewsQuery, [business_id]);
+
+    const response = {
+      restaurant_name: restaurant.restaurant_name,
+      address: restaurant.address,
+      cuisine: restaurant.cuisine,
+      stars: restaurant.stars,
+      amenities: restaurant.amenities,
+      business_hours: restaurant.business_hours,
+      reviews: reviewsResult.rows,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching restaurant details:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch restaurant details.' });
+  }
+};
+
+const getBusinessNames = async (req, res) => {
+  try {
+    const query = `
+      SELECT business_id, name
+      FROM normalized_businesses
+      ORDER BY name;
+    `;
+
+    const result = await connection.query(query);
+
+    // Return the list of businesses with business_id and name
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching business names:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch business names.' });
+  }
+};
+
+const postReview = async (req, res) => {
+  const { user_id, business_id, stars, review_text, useful = 0, funny = 0, cool = 0 } = req.body;
+
+  if (!user_id || !business_id || !stars || !review_text) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+  const reviewId = uuidv4();
+  try {
+    const query = `
+      INSERT INTO normalized_user_reviews (
+        review_id, user_id, business_id, stars, review_text, review_date, useful, funny, cool, cleaned_text
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $8, ''
+      )
+      RETURNING review_id, review_date;
+    `;
+    
+    const values = [reviewId, user_id, business_id, stars, review_text, useful, funny, cool];
+    const result = await connection.query(query, values);
+
+    res.status(201).json({
+      message: 'Review posted successfully.',
+      review_id: result.rows[0].review_id,
+      review_date: result.rows[0].review_date,
+    });
+  } catch (error) {
+    console.error('Error posting review:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to post review.' });
   }
 };
 
@@ -485,7 +814,6 @@ const addCheckin = async (req, res) => {
 
 
 module.exports = {
-  sample,
   topReviewRestaurants,
   averageStarsWifi,
   mostFavouriteRestaurants,
@@ -503,12 +831,19 @@ module.exports = {
   openRestaurantsNow,
   restaurantsWithAmenities,
   addReview,
-  addCheckin
-}
-
-// Export routes and individual handlers
-module.exports = {
-  sample: async (req, res) => res.status(200).json({ key: 'value' }),
+  addCheckin,
   registerUser,
   logoutUser,
-};
+  loginUser,
+  getUniqueCities,
+  getUniqueCuisine,
+  getRestaurants,
+  getRestaurantDetails,
+  getBusinessNames,
+  postReview,
+  sample: async (req, res) => res.status(200).json({ key: 'value' }),
+}
+
+// // Export routes and individual handlers
+// module.exports = {
+// };
