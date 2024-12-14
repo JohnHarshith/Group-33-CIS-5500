@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FcGoogle } from 'react-icons/fc';
-import { BsMicrosoft } from 'react-icons/bs';
+import debounce from 'lodash.debounce'; // Ensure lodash.debounce is installed
 import {
   LoginRegisterWrapper,
   FormContainer,
@@ -16,17 +16,22 @@ import {
 
 const LoginRegister = ({ setUser }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
 
   const passwordCriteria = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
   const toggleForm = () => {
     setIsLogin(!isLogin);
+    setUsername('');
     setPassword('');
     setConfirmPassword('');
+    setUsernameError('');
     setErrorMessage('');
     setConfirmErrorMessage('');
   };
@@ -36,9 +41,7 @@ const LoginRegister = ({ setUser }) => {
     setPassword(value);
 
     if (!passwordCriteria.test(value)) {
-      setErrorMessage(
-        'Password must be at least 8 characters long, include 1 capital letter, 1 number, and 1 special character.'
-      );
+      setErrorMessage('Password must include 8 characters, 1 capital letter, 1 number, and 1 special character.');
     } else {
       setErrorMessage('');
     }
@@ -55,30 +58,68 @@ const LoginRegister = ({ setUser }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-  
-    if (!isLogin && (errorMessage || confirmErrorMessage)) {
-      alert('Please fix the errors before submitting.');
+  const checkUsername = async (username) => {
+    if (!username) {
+      setUsernameError('');
       return;
     }
-  
+
+    setIsCheckingUsername(true);
+    try {
+      const response = await fetch('http://localhost:8080/checkusername', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.exists) {
+          setUsernameError('Username already exists.');
+        } else {
+          setUsernameError('');
+        }
+      } else {
+        console.error('Error checking username');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
+  const debouncedCheckUsername = useCallback(debounce(checkUsername, 300), []);
+
+  const handleUsernameChange = (e) => {
+    const value = e.target.value;
+    setUsername(value);
+    debouncedCheckUsername(value);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!isLogin && (usernameError || errorMessage || confirmErrorMessage)) {
+      alert('Please resolve the errors before submitting.');
+      return;
+    }
+
     try {
       if (!isLogin) {
         // Handle registration
-        const username = document.querySelector('input[placeholder="Username"]').value;
         const email = document.querySelector('input[placeholder="Email Address"]').value;
-  
+
         const response = await fetch('http://localhost:8080/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, username, password }),
         });
-  
+
         if (response.ok) {
           const data = await response.json();
-          localStorage.setItem('username', username); // Save new username
-          localStorage.setItem('user_id', data.user.user_id); // Save user ID
+          localStorage.setItem('username', username);
+          localStorage.setItem('user_id', data.user.user_id);
           alert('Registration successful! Redirecting...');
           window.location.href = '/home';
         } else {
@@ -86,21 +127,16 @@ const LoginRegister = ({ setUser }) => {
           alert(`Registration failed: ${error.error}`);
         }
       } else {
-        // Login functionality not available; prompt the user
         alert('Login functionality is not implemented yet.');
       }
     } catch (err) {
       console.error('Error:', err);
       alert('An error occurred. Please try again.');
     }
-  };  
+  };
 
   const handleGoogleSignIn = () => {
     window.location.href = 'http://localhost:3000/auth/google';
-  };
-
-  const handleMicrosoftSignIn = () => {
-    window.location.href = 'http://localhost:3000/auth/microsoft';
   };
 
   return (
@@ -115,7 +151,20 @@ const LoginRegister = ({ setUser }) => {
           </Tab>
         </TabWrapper>
         <form onSubmit={handleSubmit}>
-          {!isLogin && <Input type="text" placeholder="Username" required />}
+          {!isLogin && (
+            <>
+              <Input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={handleUsernameChange}
+                required
+              />
+              {usernameError && (
+                <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{usernameError}</p>
+              )}
+            </>
+          )}
           <Input type="email" placeholder="Email Address" required />
           <Input
             type="password"
@@ -134,26 +183,21 @@ const LoginRegister = ({ setUser }) => {
             />
           )}
           {errorMessage && (
-            <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>
-              {errorMessage}
-            </p>
+            <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{errorMessage}</p>
           )}
           {confirmErrorMessage && (
-            <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>
-              {confirmErrorMessage}
-            </p>
+            <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{confirmErrorMessage}</p>
           )}
-          {isLogin && <ForgotPassword href="#">Forgot password?</ForgotPassword>}
-          <SubmitButton type="submit" disabled={!isLogin && (errorMessage || confirmErrorMessage)}>
+          <SubmitButton
+            type="submit"
+            disabled={!isLogin && (usernameError || errorMessage || confirmErrorMessage)}
+          >
             {isLogin ? 'Login' : 'Register'}
           </SubmitButton>
         </form>
         <IconButtonWrapper>
           <IconButton onClick={handleGoogleSignIn}>
             <FcGoogle size={20} /> Sign in with Google
-          </IconButton>
-          <IconButton onClick={handleMicrosoftSignIn}>
-            <BsMicrosoft size={20} /> Sign in with Microsoft
           </IconButton>
         </IconButtonWrapper>
         <SwitchText>

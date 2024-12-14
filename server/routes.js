@@ -3,7 +3,7 @@ const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid'); 
 const jwt = require('jsonwebtoken');
-require('dotenv').config(); 
+require('dotenv').config();
 
 // Initialize express router
 const router = express.Router();
@@ -92,6 +92,25 @@ const logoutUser = async (req, res) => {
   } catch (error) {
     console.error('Error during logout:', error);
     res.status(500).json({ error: 'Failed to log out user.' });
+  }
+};
+
+const checkUsername = async (req, res) => {
+  console.log('Check username called with:', req.body);
+
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required.' });
+  }
+
+  try {
+    const query = 'SELECT COUNT(*) FROM users WHERE username = $3';
+    const result = await connection.query(query, [username]);
+    const exists = parseInt(result.rows[0].count, 10) > 0;
+    res.status(200).json({ exists });
+  } catch (error) {
+    console.error('Error checking username:', error);
+    res.status(500).json({ error: 'Failed to check username.' });
   }
 };
 
@@ -811,8 +830,6 @@ const addCheckin = async (req, res) => {
       res.status(500).send('Internal Server Error');
   }
 }
-
-
 module.exports = {
   topReviewRestaurants,
   averageStarsWifi,
@@ -832,8 +849,26 @@ module.exports = {
   restaurantsWithAmenities,
   addReview,
   addCheckin,
+  topReviewRestaurants,
+  averageStarsWifi,
+  mostFavouriteRestaurants,
+  totalCheckinsWeekday,
+  reviewPhotos,
+  topCitiesDiverseHighRated,
+  topRestaurantsReviewedByUserFriends,
+  topCategories,
+  mostTippedRestaurants,
+  citiesWithOutdoorSeating,
+  mostHelpfulReviews,
+  averageCheckins,
+  monthlyCheckinDistribution,
+  happiestCity,
+  openRestaurantsNow,
+  restaurantsWithAmenities,
+  addReview,
   registerUser,
   logoutUser,
+  checkUsername,
   loginUser,
   getUniqueCities,
   getUniqueCuisine,

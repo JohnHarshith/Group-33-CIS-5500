@@ -1,14 +1,4 @@
 import styled from 'styled-components';
-import { createGlobalStyle } from 'styled-components';
-
-export const GlobalStyle = createGlobalStyle`
-  html, body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden; /* Disables scrolling */
-    height: 100%; /* Ensures the height is 100% of the viewport */
-  }
-`;
 
 export const Wrapper = styled.div`
   font-family: 'Lato', sans-serif;
@@ -30,33 +20,39 @@ export const Header = styled.header`
   }
 `;
 
-export const Logo = styled.div`
-  font-size: 24px;
-  font-weight: bold;
+export const Profile = styled.div`
+  position: relative; /* Position relative for dropdown positioning */
+  margin-left: auto;
 
   @media (max-width: 768px) {
-    margin-bottom: 10px;
+    margin-left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
   }
-`;
-
-export const Profile = styled.div`
-  position: relative;
-`;
-
-export const Arrow = styled.div`
-  font-size: 12px;
 `;
 
 export const ProfileDropdown = styled.div`
   position: absolute;
   right: 0;
-  top: 40px;
+  top: 40px; /* Adjust based on header height */
   background: white;
   color: black;
   box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
   border-radius: 5px;
   overflow: hidden;
-  z-index: 10; /* Ensure dropdown appears above other elements */
+  z-index: 10;
+
+  @media (max-width: 768px) {
+    top: 50px; /* Slightly below header for smaller screens */
+    right: 10px; /* Padding from the right edge */
+    width: 100%; /* Make dropdown full width for better usability */
+  }
+`;
+
+
+export const Arrow = styled.div`
+  font-size: 12px;
 `;
 
 export const DropdownItem = styled.div`
