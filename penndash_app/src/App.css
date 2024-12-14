@@ -3,6 +3,7 @@
 }
 
 
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;
@@ -25,13 +26,13 @@
   color: white;
 }
 
-.App-footer {
+/* .App-footer {
   background-color: #f1f1f1;
   padding: 10px;
   position: fixed;
   bottom: 0;
   width: 100%;
-}
+} */
 
 
 .App-link {

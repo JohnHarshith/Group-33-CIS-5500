@@ -1,46 +1,47 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FcGoogle } from 'react-icons/fc';
-import debounce from 'lodash.debounce'; // Ensure lodash.debounce is installed
 import {
   LoginRegisterWrapper,
   FormContainer,
   TabWrapper,
   Tab,
+  InputWrapper,
   Input,
-  ForgotPassword,
+  EyeIcon,
   SubmitButton,
   SwitchText,
   IconButtonWrapper,
   IconButton,
 } from './loginregister.styled';
 
-const LoginRegister = ({ setUser }) => {
+const LoginRegister = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [usernameError, setUsernameError] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const navigate = useNavigate();
 
   const passwordCriteria = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
   const toggleForm = () => {
     setIsLogin(!isLogin);
+    setEmail('');
     setUsername('');
     setPassword('');
     setConfirmPassword('');
-    setUsernameError('');
     setErrorMessage('');
-    setConfirmErrorMessage('');
   };
 
   const handlePasswordChange = (e) => {
     const value = e.target.value;
     setPassword(value);
 
-    if (!passwordCriteria.test(value)) {
+    if (!passwordCriteria.test(value) && !isLogin) {
       setErrorMessage('Password must include 8 characters, 1 capital letter, 1 number, and 1 special character.');
     } else {
       setErrorMessage('');
@@ -52,91 +53,47 @@ const LoginRegister = ({ setUser }) => {
     setConfirmPassword(value);
 
     if (value !== password) {
-      setConfirmErrorMessage('Passwords do not match.');
+      setErrorMessage('Passwords do not match.');
     } else {
-      setConfirmErrorMessage('');
+      setErrorMessage('');
     }
-  };
-
-  const checkUsername = async (username) => {
-    if (!username) {
-      setUsernameError('');
-      return;
-    }
-
-    setIsCheckingUsername(true);
-    try {
-      const response = await fetch('http://localhost:8080/checkusername', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.exists) {
-          setUsernameError('Username already exists.');
-        } else {
-          setUsernameError('');
-        }
-      } else {
-        console.error('Error checking username');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsCheckingUsername(false);
-    }
-  };
-
-  const debouncedCheckUsername = useCallback(debounce(checkUsername, 300), []);
-
-  const handleUsernameChange = (e) => {
-    const value = e.target.value;
-    setUsername(value);
-    debouncedCheckUsername(value);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!isLogin && (usernameError || errorMessage || confirmErrorMessage)) {
-      alert('Please resolve the errors before submitting.');
+    if (!isLogin && password !== confirmPassword) {
+      setErrorMessage('Passwords do not match.');
       return;
     }
 
+    const url = isLogin ? 'http://localhost:8080/login' : 'http://localhost:8080/register';
+    const body = isLogin ? { email, password } : { email, username, password };
+
     try {
-      if (!isLogin) {
-        // Handle registration
-        const email = document.querySelector('input[placeholder="Email Address"]').value;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
-        const response = await fetch('http://localhost:8080/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, username, password }),
-        });
+      if (response.ok) {
+        const data = await response.json();
 
-        if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem('username', username);
-          localStorage.setItem('user_id', data.user.user_id);
-          alert('Registration successful! Redirecting...');
-          window.location.href = '/home';
-        } else {
-          const error = await response.json();
-          alert(`Registration failed: ${error.error}`);
-        }
+        // Store user_id and username in localStorage
+        localStorage.setItem('user_id', data.user.user_id || '');
+        localStorage.setItem('username', data.user.username || '');
+
+        alert(isLogin ? 'Login successful!' : 'Registration successful!');
+        navigate('/home'); // Redirect to home
       } else {
-        alert('Login functionality is not implemented yet.');
+        const error = await response.json();
+        setErrorMessage(error.error || 'An error occurred. Please try again.');
       }
     } catch (err) {
       console.error('Error:', err);
-      alert('An error occurred. Please try again.');
+      setErrorMessage('An error occurred. Please try again.');
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    window.location.href = 'http://localhost:3000/auth/google';
   };
 
   return (
@@ -151,58 +108,77 @@ const LoginRegister = ({ setUser }) => {
           </Tab>
         </TabWrapper>
         <form onSubmit={handleSubmit}>
+          <InputWrapper>
+            <Input
+              type="email"
+              placeholder="Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </InputWrapper>
           {!isLogin && (
-            <>
+            <InputWrapper>
               <Input
                 type="text"
                 placeholder="Username"
                 value={username}
-                onChange={handleUsernameChange}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
-              {usernameError && (
-                <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{usernameError}</p>
-              )}
-            </>
+            </InputWrapper>
           )}
-          <Input type="email" placeholder="Email Address" required />
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={handlePasswordChange}
-            required
-          />
-          {!isLogin && (
+          <InputWrapper>
             <Input
-              type="password"
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChange={handleConfirmPasswordChange}
+              type={passwordVisible ? 'text' : 'password'}
+              placeholder="Password"
+              value={password}
+              onChange={handlePasswordChange}
               required
             />
+            <EyeIcon onClick={() => setPasswordVisible(!passwordVisible)}>
+              {passwordVisible ? '🙈' : '👁️'}
+            </EyeIcon>
+          </InputWrapper>
+          {!isLogin && (
+            <InputWrapper>
+              <Input
+                type={confirmPasswordVisible ? 'text' : 'password'}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={handleConfirmPasswordChange}
+                required
+              />
+              <EyeIcon onClick={() => setConfirmPasswordVisible(!confirmPasswordVisible)}>
+                {confirmPasswordVisible ? '🙈' : '👁️'}
+              </EyeIcon>
+            </InputWrapper>
           )}
           {errorMessage && (
             <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{errorMessage}</p>
           )}
-          {confirmErrorMessage && (
-            <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{confirmErrorMessage}</p>
-          )}
-          <SubmitButton
-            type="submit"
-            disabled={!isLogin && (usernameError || errorMessage || confirmErrorMessage)}
-          >
-            {isLogin ? 'Login' : 'Register'}
-          </SubmitButton>
+          <SubmitButton type="submit">{isLogin ? 'Login' : 'Register'}</SubmitButton>
         </form>
         <IconButtonWrapper>
-          <IconButton onClick={handleGoogleSignIn}>
+          <IconButton>
             <FcGoogle size={20} /> Sign in with Google
           </IconButton>
         </IconButtonWrapper>
         <SwitchText>
           {isLogin ? 'Not a member? ' : 'Already a member? '}
-          <a onClick={toggleForm}>{isLogin ? 'Register now' : 'Login now'}</a>
+          <button
+            type="button"
+            onClick={toggleForm}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'blue',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+            }}
+          >
+            {isLogin ? 'Register now' : 'Login now'}
+          </button>
         </SwitchText>
       </FormContainer>
     </LoginRegisterWrapper>

@@ -212,14 +212,50 @@ export const Icon = styled.div`
   }
 `;
 
+export const TabsWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+`;
+
+export const Tab = styled.div`
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  background: ${(props) => (props.active ? '#333' : '#f0f0f0')};
+  color: ${(props) => (props.active ? 'white' : '#333')};
+  &:hover {
+    background: #555;
+    color: white;
+  }
+`;
+
+export const StarRatingWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+`;
+
+export const Star = styled.div`
+  font-size: 18px;
+  color: ${(props) => {
+    if (props.filled) {
+      return props.filled >= 4 ? 'green' : props.filled >= 2 ? 'orange' : 'red';
+    }
+    return '#ccc';
+  }};
+`;
+
 export const ProfileDetails = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding-left: 10px; /* Add padding to shift "John Doe" left */
+  padding-left: 10px;
 `;
 
 export const ProfileName = styled.div`
   margin-right: 10px;
-  font-size: 16px; /* Adjust size if necessary */
+  font-size: 16px;
 `;

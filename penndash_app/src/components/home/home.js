@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
-import { FaUser, FaHeart, FaList, FaSignOutAlt, FaStar } from 'react-icons/fa';
+import { FaUser, FaHeart, FaSignOutAlt, FaStar } from 'react-icons/fa';
 import {
   Wrapper,
   Header,
-  Logo,
   Profile,
   ProfileDetails,
   ProfileName,
@@ -26,44 +26,89 @@ import {
   PageButton,
   IconWrapper,
   Icon,
+  StarRatingWrapper,
+  Star,
 } from './home.styled';
 
 const Home = () => {
+  const navigate = useNavigate();
   const [profileDropdownVisible, setProfileDropdownVisible] = useState(false);
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('Guest');
+  const [filteredRestaurants, setFilteredRestaurants] = useState([]);
   const profileRef = useRef(null);
 
+  const [restaurants, setRestaurants] = useState([]);
+  const [totalRestaurants, setTotalRestaurants] = useState(0);
+
   const [selectedCity, setSelectedCity] = useState([]);
-  const [selectedAmenities, setSelectedAmenities] = useState([]);
-  const [selectedReviewCount, setSelectedReviewCount] = useState([]);
   const [selectedCuisine, setSelectedCuisine] = useState([]);
+  const [selectedAmenity, setSelectedAmenity] = useState([]);
+  const [reviewCount, setReviewCount] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
-  const [restaurants] = useState([
-   { id: 1, name: 'Restaurant A', location: 'New York', stars: 5, amenities: ['WiFi'], reviews: 150, cuisine: 'Italian' },
-   { id: 2, name: 'Restaurant B', location: 'Los Angeles', stars: 4, amenities: ['Parking'], reviews: 200, cuisine: 'Chinese' },
-   { id: 3, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 4, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 5, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 6, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 7, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 8, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 9, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 10, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 11, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 12, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 13, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-   { id: 14, name: 'Restaurant A', location: 'New York', stars: 5, amenities: ['WiFi'], reviews: 150, cuisine: 'Italian' },
-   { id: 15, name: 'Restaurant B', location: 'Los Angeles', stars: 4, amenities: ['Parking'], reviews: 200, cuisine: 'Chinese' },
-   { id: 16, name: 'Restaurant C', location: 'New York', stars: 3, amenities: ['WiFi'], reviews: 100, cuisine: 'Mexican' },
-  ]);
 
-  const [filteredRestaurants, setFilteredRestaurants] = useState(restaurants);
   const [currentPage, setCurrentPage] = useState(1);
-  const restaurantsPerPage = 9;
+  const restaurantsPerPage = 9; // Number of cards per page
   const [favorites, setFavorites] = useState({});
-  const [highlightedStars, setHighlightedStars] = useState({});
+  const amenityOptions = [
+    { value: 'wifi', label: 'WiFi' },
+    { value: 'parking', label: 'Parking' },
+    { value: 'outdoor_seating', label: 'Outdoor Seating' },
+  ];
 
-  // Handle Dropdown Visibility
+  const [cities, setCities] = useState([]);
+  const [cuisines, setCuisines] = useState([]);
+
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/getUniqueCities');
+        const data = await response.json();
+        setCities(data.cities.map((city) => ({ value: city, label: city })));
+      } catch (err) {
+        console.error('Failed to fetch cities:', err);
+      }
+    };
+
+    const fetchCuisines = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/getUniqueCuisine');
+        const data = await response.json();
+        setCuisines(data.cuisines.map((cuisine) => ({ value: cuisine, label: cuisine })));
+      } catch (err) {
+        console.error('Failed to fetch cuisines:', err);
+      }
+    };
+
+    fetchCities();
+    fetchCuisines();
+  }, []);
+
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      try {
+        const queryParams = new URLSearchParams({
+          page: currentPage,
+          limit: restaurantsPerPage,
+          city: selectedCity.map((city) => city.value).join(','),
+          cuisine: selectedCuisine.map((cuisine) => cuisine.value).join(','),
+          amenities: selectedAmenity.map((amenity) => amenity.value).join(','),
+          reviews: reviewCount,
+          stars: sliderValue,
+        });
+
+        const response = await fetch(`http://localhost:8080/getRestaurants`);
+        const data = await response.json();
+        setRestaurants(data.restaurants);
+        setFilteredRestaurants(data.restaurants);
+        setTotalRestaurants(data.total); // Assuming the API returns the total count
+      } catch (err) {
+        console.error('Failed to fetch restaurants:', err);
+      }
+    };
+
+    fetchRestaurants();
+  }, [currentPage, selectedCity, selectedCuisine, selectedAmenity, reviewCount, sliderValue]);
+
   const toggleProfileDropdown = () => {
     setProfileDropdownVisible(!profileDropdownVisible);
   };
@@ -81,7 +126,6 @@ const Home = () => {
     };
   }, []);
 
-  // Handle Favorite and Highlight
   const handleHeartClick = (id) => {
     setFavorites((prevFavorites) => ({
       ...prevFavorites,
@@ -89,21 +133,12 @@ const Home = () => {
     }));
   };
 
-  const handleStarClick = (id) => {
-    setHighlightedStars((prevStars) => ({
-      ...prevStars,
-      [id]: !prevStars[id],
-    }));
-  };
-
-  // Apply Filters
   const handleApplyFilters = () => {
     const filtered = restaurants.filter((restaurant) => {
       return (
-        (!selectedCity.length || selectedCity.some((city) => city.label.toLowerCase() === restaurant.location.toLowerCase())) &&
-        (!selectedAmenities.length || selectedAmenities.every((amenity) => restaurant.amenities.includes(amenity.label))) &&
-        (!selectedReviewCount.length || selectedReviewCount.some((review) => parseInt(review.value) <= restaurant.reviews)) &&
-        (!selectedCuisine.length || selectedCuisine.some((cuisine) => cuisine.label === restaurant.cuisine)) &&
+        (!selectedCity.length || selectedCity.some((city) => city.value === restaurant.city)) &&
+        (!selectedCuisine.length || selectedCuisine.some((cuisine) => cuisine.value === restaurant.cuisine)) &&
+        (!selectedAmenity.length || selectedAmenity.every((amenity) => restaurant.amenities.includes(amenity.value))) &&
         restaurant.stars >= sliderValue
       );
     });
@@ -111,65 +146,126 @@ const Home = () => {
     setCurrentPage(1);
   };
 
-  // Reset Filters
   const resetFilters = () => {
     setSelectedCity([]);
-    setSelectedAmenities([]);
-    setSelectedReviewCount([]);
     setSelectedCuisine([]);
+    setSelectedAmenity([]);
+    setReviewCount(0);
     setSliderValue(0);
-    setFilteredRestaurants(restaurants);
     setCurrentPage(1);
   };
-
-  // Pagination
-  const indexOfLastRestaurant = currentPage * restaurantsPerPage;
-  const indexOfFirstRestaurant = indexOfLastRestaurant - restaurantsPerPage;
-  const currentRestaurants = filteredRestaurants.slice(indexOfFirstRestaurant, indexOfLastRestaurant);
 
   const totalPages = Math.ceil(filteredRestaurants.length / restaurantsPerPage);
 
   const changePage = (pageNumber) => {
-    setCurrentPage(pageNumber);
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
   };
 
-  // Load username from local storage
-  useEffect(() => {
-    const storedUsername = localStorage.getItem('username');
-    if (storedUsername) {
-      setUsername(storedUsername);
-    } else {
-      setUsername('Guest');
+  const renderPagination = () => {
+    const paginationButtons = [];
+    const maxVisiblePages = 5;
+    const startPage = Math.max(currentPage - Math.floor(maxVisiblePages / 2), 1);
+    const endPage = Math.min(startPage + maxVisiblePages - 1, totalPages);
+
+    for (let i = startPage; i <= endPage; i++) {
+      paginationButtons.push(
+        <PageButton
+          key={i}
+          onClick={() => changePage(i)}
+          active={currentPage === i}
+        >
+          {i}
+        </PageButton>
+      );
     }
-  }, []);
+
+    return (
+      <>
+        <PageButton onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1}>
+          &lt;
+        </PageButton>
+        {paginationButtons}
+        <PageButton onClick={() => changePage(currentPage + 1)} disabled={currentPage === totalPages}>
+          &gt;
+        </PageButton>
+      </>
+    );
+  };
+
+  const renderStars = (stars) => {
+    return Array.from({ length: 5 }, (_, i) => <Star key={i} filled={i < stars} />);
+  };
+
+  useEffect(() => {
+    const fetchUsername = async () => {
+      const userId = localStorage.getItem('user_id');
+      const storedUsername = localStorage.getItem('username');
+
+      if (!userId) {
+        navigate('/login');
+      } else if (!storedUsername) {
+        try {
+          const response = await fetch('http://localhost:8080/getUser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setUsername(data.username);
+            localStorage.setItem('username', data.username);
+          } else {
+            setUsername('Guest');
+          }
+        } catch (err) {
+          console.error('Failed to fetch username:', err);
+          setUsername('Guest');
+        }
+      } else {
+        setUsername(storedUsername);
+      }
+    };
+
+    fetchUsername();
+  }, [navigate]);
 
   const handleLogout = async () => {
-    try {
-      const storedUsername = localStorage.getItem('username');
-      if (!storedUsername) {
-        alert('No user logged in.');
-        return;
-      }
+    const user_id = localStorage.getItem('user_id');
 
+    if (!user_id) {
+      alert('No user logged in.');
+      return;
+    }
+
+    try {
       const response = await fetch('http://localhost:8080/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: storedUsername }),
+        body: JSON.stringify({ user_id }),
       });
 
       if (response.ok) {
-        alert('Logged out successfully.');
-        localStorage.removeItem('username'); // Remove username from local storage
-        window.location.href = '/logout';
+        alert('Logout successful.');
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('username');
+        navigate('/logout');
       } else {
         const error = await response.json();
-        alert(`Failed to log out: ${error.error || 'Unknown error'}`);
+        alert(`Error: ${error.error}`);
       }
     } catch (err) {
-      console.error('Logout failed:', err);
+      console.error('Logout error:', err);
       alert('Failed to log out.');
     }
   };
+
+  const currentRestaurants = filteredRestaurants.slice(
+    (currentPage - 1) * restaurantsPerPage,
+    currentPage * restaurantsPerPage
+  );
 
   return (
     <Wrapper>
@@ -189,10 +285,6 @@ const Home = () => {
                 <FaHeart style={{ marginRight: '10px' }} />
                 Favorites
               </DropdownItem>
-              <DropdownItem>
-                <FaList style={{ marginRight: '10px' }} />
-                My List
-              </DropdownItem>
               <DropdownItem onClick={handleLogout}>
                 <FaSignOutAlt style={{ marginRight: '10px' }} />
                 Logout
@@ -205,7 +297,7 @@ const Home = () => {
         <Filters>
           <SelectWrapper>
             <Select
-              options={[{ value: 'new york', label: 'New York' }, { value: 'los angeles', label: 'Los Angeles' }]}
+              options={cities}
               isMulti
               placeholder="Select City"
               value={selectedCity}
@@ -214,72 +306,69 @@ const Home = () => {
           </SelectWrapper>
           <SelectWrapper>
             <Select
-              options={[
-                { value: 'wifi', label: 'WiFi' },
-                { value: 'parking', label: 'Parking' },
-              ]}
-              isMulti
-              placeholder="Select Amenities"
-              value={selectedAmenities}
-              onChange={(selected) => setSelectedAmenities(selected || [])}
-            />
-          </SelectWrapper>
-          <SelectWrapper>
-            <Select
-              options={[
-                { value: '100', label: '100+' },
-                { value: '200', label: '200+' },
-              ]}
-              isMulti
-              placeholder="Select Review Count"
-              value={selectedReviewCount}
-              onChange={(selected) => setSelectedReviewCount(selected || [])}
-            />
-          </SelectWrapper>
-          <SelectWrapper>
-            <Select
-              options={[
-                { value: 'italian', label: 'Italian' },
-                { value: 'chinese', label: 'Chinese' },
-                { value: 'mexican', label: 'Mexican' },
-              ]}
+              options={cuisines}
               isMulti
               placeholder="Select Cuisine"
               value={selectedCuisine}
               onChange={(selected) => setSelectedCuisine(selected || [])}
             />
           </SelectWrapper>
+          <SelectWrapper>
+            <Select
+              options={amenityOptions}
+              isMulti
+              placeholder="Select Amenities"
+              value={selectedAmenity}
+              onChange={(selected) => setSelectedAmenity(selected || [])}
+            />
+          </SelectWrapper>
           <SliderWrapper>
             <SliderLabel>Stars: {sliderValue}</SliderLabel>
-            <Slider type="range" min="0" max="5" step="0.5" value={sliderValue} onChange={(e) => setSliderValue(parseFloat(e.target.value))} />
+            <Slider
+              type="range"
+              min="0"
+              max="5"
+              step="0.5"
+              value={sliderValue}
+              onChange={(e) => setSliderValue(parseFloat(e.target.value))}
+            />
+          </SliderWrapper>
+          <SliderWrapper>
+            <SliderLabel>Review Count: {reviewCount}</SliderLabel>
+            <Slider
+              type="range"
+              min="0"
+              max="2000"
+              step="100"
+              value={reviewCount}
+              onChange={(e) => setReviewCount(parseInt(e.target.value))}
+            />
           </SliderWrapper>
           <ApplyButton onClick={handleApplyFilters}>Apply Filters</ApplyButton>
           <ApplyButton onClick={resetFilters}>Reset Filters</ApplyButton>
         </Filters>
         <RestaurantList>
           {currentRestaurants.map((restaurant) => (
-            <RestaurantCard key={restaurant.id}>
+            <RestaurantCard key={restaurant.business_id}>
               <IconWrapper>
-                <Icon onClick={() => handleHeartClick(restaurant.id)} favorite={favorites[restaurant.id]}>
+                <Icon onClick={() => handleHeartClick(restaurant.business_id)} favorite={favorites[restaurant.business_id]}>
                   <FaHeart />
-                </Icon>
-                <Icon onClick={() => handleStarClick(restaurant.id)} highlight={highlightedStars[restaurant.id]}>
-                  <FaStar />
                 </Icon>
               </IconWrapper>
               <RestaurantName>{restaurant.name}</RestaurantName>
-              <RestaurantDetails>Location: {restaurant.location}</RestaurantDetails>
-              <RestaurantDetails>Stars: {restaurant.stars}</RestaurantDetails>
+              <RestaurantDetails>
+                <StarRatingWrapper>{renderStars(Math.round(restaurant.stars))}</StarRatingWrapper>
+              </RestaurantDetails>
+              <RestaurantDetails>Location: {restaurant.city}</RestaurantDetails>
+              <RestaurantDetails>Reviews: {restaurant.review_count}</RestaurantDetails>
+              <RestaurantDetails>Categories: {restaurant.categories.join(', ')}</RestaurantDetails>
+              <RestaurantDetails>
+                {restaurant.isOpen ? 'Open Now' : 'Closed'}
+              </RestaurantDetails>
             </RestaurantCard>
           ))}
         </RestaurantList>
-        <PaginationWrapper>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <PageButton key={i + 1} onClick={() => changePage(i + 1)} active={currentPage === i + 1}>
-              {i + 1}
-            </PageButton>
-          ))}
-        </PaginationWrapper>
+        <PaginationWrapper>{renderPagination()}</PaginationWrapper>
       </MainContent>
     </Wrapper>
   );
