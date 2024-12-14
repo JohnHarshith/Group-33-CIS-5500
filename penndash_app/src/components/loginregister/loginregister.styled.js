@@ -122,3 +122,18 @@ export const SwitchText = styled.p`
     }
   }
 `;
+
+export const InputWrapper = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+export const EyeIcon = styled.div`
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+`;

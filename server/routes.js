@@ -34,37 +34,39 @@ connection.connect((err) => {
 const registerUser = async (req, res) => {
   const { email, username, password } = req.body;
 
-  // Validate input
   if (!email || !username || !password) {
     return res.status(400).json({ error: 'All fields are required.' });
   }
 
   try {
-    // Hash the password
+    const checkUsernameQuery = 'SELECT COUNT(*) FROM users WHERE username = $1';
+    const checkUsernameResult = await connection.query(checkUsernameQuery, [username]);
+    if (parseInt(checkUsernameResult.rows[0].count, 10) > 0) {
+      return res.status(409).json({ error: 'Username already in use.' });
+    }
+
+    const checkEmailQuery = 'SELECT COUNT(*) FROM users WHERE email = $1';
+    const checkEmailResult = await connection.query(checkEmailQuery, [email]);
+    if (parseInt(checkEmailResult.rows[0].count, 10) > 0) {
+      return res.status(409).json({ error: 'Email already in use.' });
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
+    const user_id = uuidv4();
 
-    // Generate a unique user_id
-    const userId = uuidv4();
-
-    // Insert user into the database
-    const query = `
+    const registerQuery = `
       INSERT INTO users (user_id, email, username, password_hash, registration_date)
       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       RETURNING user_id, email, username, registration_date;
     `;
-    const values = [userId, email, username, passwordHash];
-    const result = await connection.query(query, values);
+    const registerValues = [user_id, email, username, passwordHash];
+    const registerResult = await connection.query(registerQuery, registerValues);
 
-    // Respond with the new user's data (excluding the password hash)
-    res.status(201).json({ user: result.rows[0] });
+    // Return the user_id in the response
+    res.status(201).json({ user: registerResult.rows[0] });
   } catch (error) {
-    console.error('Error during registration:', error.message, error.stack);
-    if (error.code === '23505') {
-      // Email already exists
-      res.status(409).json({ error: 'Email already in use.' });
-    } else {
-      res.status(500).json({ error: 'Failed to register user.' });
-    }
+    console.error('Error during registration:', error);
+    res.status(500).json({ error: 'Failed to register user.' });
   }
 };
 
@@ -95,25 +97,6 @@ const logoutUser = async (req, res) => {
   }
 };
 
-const checkUsername = async (req, res) => {
-  console.log('Check username called with:', req.body);
-
-  const { username } = req.body;
-  if (!username) {
-    return res.status(400).json({ error: 'Username is required.' });
-  }
-
-  try {
-    const query = 'SELECT COUNT(*) FROM users WHERE username = $3';
-    const result = await connection.query(query, [username]);
-    const exists = parseInt(result.rows[0].count, 10) > 0;
-    res.status(200).json({ exists });
-  } catch (error) {
-    console.error('Error checking username:', error);
-    res.status(500).json({ error: 'Failed to check username.' });
-  }
-};
-
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -123,7 +106,7 @@ const loginUser = async (req, res) => {
   }
 
   try {
-    // Check if the user exists
+    // Query to check if the user exists
     const query = `
       SELECT user_id, email, username, password_hash
       FROM users
@@ -131,27 +114,27 @@ const loginUser = async (req, res) => {
     `;
     const result = await connection.query(query, [email]);
 
+    // If user does not exist, return an error
     if (result.rowCount === 0) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
     const user = result.rows[0];
 
-    // Compare the provided password with the stored password hash
+    // Validate the provided password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // Generate a session token (or JWT)
+    // Generate a JSON Web Token (JWT)
     const token = jwt.sign(
-      { userId: user.user_id, email: user.email, username: user.username },
+      { user_id: user.user_id, email: user.email, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' } // Adjust expiration as needed
+      { expiresIn: '1h' } // Token validity: 1 hour
     );
 
-    // Optionally update the last login time in the database
+    // Update the last login timestamp in the database
     const updateQuery = `
       UPDATE users
       SET last_login = CURRENT_TIMESTAMP
@@ -159,7 +142,7 @@ const loginUser = async (req, res) => {
     `;
     await connection.query(updateQuery, [user.user_id]);
 
-    // Respond with the session token and user data
+    // Respond with the user data and token
     res.status(200).json({
       message: 'Login successful.',
       token,
@@ -171,7 +154,7 @@ const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Error during login:', error.message, error.stack);
-    res.status(500).json({ error: 'Failed to log in user.' });
+    res.status(500).json({ error: 'An unexpected error occurred while logging in.' });
   }
 };
 
@@ -216,18 +199,30 @@ const getUniqueCuisine = async (req, res) => {
 
 const getRestaurants = async (req, res) => {
   try {
-    // Get current EST timestamp
+    // Get current EST timestamp for determining "isOpen"
     const now = new Date();
     const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
     const currentDay = estTime.toLocaleString('en-US', { weekday: 'long' }); // e.g., "Monday"
     const currentTime = estTime.toTimeString().slice(0, 8); // HH:MM:SS format
 
-    // Get pagination parameters from query string
-    const { page = 1, limit = 10 } = req.query;
+    // Pagination parameters from query string
+    const { page = 1 } = req.query;
+
+    // Query to count total rows in normalized_businesses
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM normalized_businesses nb
+      WHERE nb.categories ILIKE '%Restaurants%'
+    `;
+    const countResult = await connection.query(countQuery);
+    const totalRestaurants = parseInt(countResult.rows[0].total, 10);
+
+    // Use the total number of restaurants as the limit
+    const limit = totalRestaurants;
     const offset = (page - 1) * limit;
 
-    // Query to fetch all restaurant details by joining the required tables
-    const query = `
+    // Query to fetch restaurant data with pagination
+    const dataQuery = `
       SELECT 
         nb.business_id,
         nb.name,
@@ -259,17 +254,18 @@ const getRestaurants = async (req, res) => {
         nb.business_id, bl.city
       ORDER BY 
         nb.name
-      LIMIT $1 OFFSET $2;
+      LIMIT $1 OFFSET $2
     `;
 
-    const result = await connection.query(query, [limit, offset]);
+    const result = await connection.query(dataQuery, [limit, offset]);
 
-    // Map categories from a semicolon-separated string to a list and calculate isOpen
-    const restaurants = result.rows.map(row => {
-      const isOpen = row.hours.some(hour => 
-        hour.day_of_week === currentDay &&
-        hour.open_time <= currentTime &&
-        hour.close_time >= currentTime
+    // Map categories and determine if the restaurant is open
+    const restaurants = result.rows.map((row) => {
+      const isOpen = row.hours.some(
+        (hour) =>
+          hour.day_of_week === currentDay &&
+          hour.open_time <= currentTime &&
+          hour.close_time >= currentTime
       );
 
       return {
@@ -284,7 +280,8 @@ const getRestaurants = async (req, res) => {
       };
     });
 
-    res.status(200).json({ page: Number(page), limit: Number(limit), restaurants });
+    // Return paginated results with total count
+    res.status(200).json({ page: Number(page), limit, total: totalRestaurants, restaurants });
   } catch (error) {
     console.error('Error fetching restaurant details:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to fetch restaurant details.' });
@@ -868,7 +865,6 @@ module.exports = {
   addReview,
   registerUser,
   logoutUser,
-  checkUsername,
   loginUser,
   getUniqueCities,
   getUniqueCuisine,
