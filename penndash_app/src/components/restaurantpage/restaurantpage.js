@@ -4,6 +4,15 @@ import axios from 'axios';
 import { FaParking, FaWifi, FaWheelchair, FaTv, FaWineGlass, FaUsers, FaDollarSign } from 'react-icons/fa';
 import { Wrapper, Header, Section, AmenitiesGrid, AmenityCard, MapContainer, ReviewCard, ReviewSection, ReviewList } from './restaurantpage.styled';
 import { GoogleMap, MarkerF, LoadScript } from '@react-google-maps/api';
+import {
+  Box,
+  Modal,
+  Button,
+  TextField,
+  Typography,
+  Alert,
+  Stack,
+} from '@mui/material';
 
 const RestaurantPage = () => {
   const location = useLocation();
@@ -13,6 +22,62 @@ const RestaurantPage = () => {
   const [error, setError] = useState(null);
 
   const business_id = 'xoA1_vsxC0xD_fPgDZ2mbg'; // Replace dynamically as needed
+  
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    user_id: 'b73ffffc-4550-4f01-98ca-add7ed108d31',
+    business_id: location.state?.business_id,
+    stars: '',
+    review_text: '',
+    useful: 0,
+    funny: 0,
+    cool: 0,
+  });
+  const [message, setMessage] = useState('');
+  const [err, setErr] = useState('');
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setErr('');
+  
+    try {
+      const response = await fetch('http://localhost:8080/postReview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        setMessage(data.message);
+        setFormData({
+          user_id: 'b73ffffc-4550-4f01-98ca-add7ed108d31',
+          business_id: location.state?.business_id,
+          stars: '',
+          review_text: '',
+          useful: 0,
+          funny: 0,
+          cool: 0,
+        });
+      } else {
+        const errorData = await response.json();
+        setErr(errorData.error || 'Failed to post review.');
+      }
+    } catch (err) {
+      setErr('An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
 
   useEffect(() => {
     console.log(location.state?.business_id)
@@ -104,6 +169,60 @@ const RestaurantPage = () => {
             </AmenityCard>
           ))}
         </AmenitiesGrid>
+      </Section>
+
+      <Section>
+        <Button variant="contained" color="primary" onClick={handleOpen}>
+          Write a Review
+        </Button>
+      </Section>
+      
+      <Section><Modal open={open} onClose={handleClose}>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: 'background.paper',
+            border: '2px solid #000',
+            boxShadow: 24,
+            p: 4,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Write a Review
+          </Typography>
+          <form onSubmit={handleSubmit}>
+            <Stack spacing={2}>
+              <TextField
+                label="Stars"
+                name="stars"
+                type="number"
+                inputProps={{ min: 1, max: 5 }}
+                value={formData.stars}
+                onChange={handleChange}
+                required
+              />
+              <TextField
+                label="Review Text"
+                name="review_text"
+                value={formData.review_text}
+                onChange={handleChange}
+                required
+                multiline
+                rows={4}
+              />
+              <Button type="submit" variant="contained" color="primary">
+                Submit Review
+              </Button>
+              {message && <Alert severity="success">{message}</Alert>}
+              {err && <Alert severity="error">{err}</Alert>}
+            </Stack>
+          </form>
+        </Box>
+      </Modal>
       </Section>
 
       {/* Reviews */}
