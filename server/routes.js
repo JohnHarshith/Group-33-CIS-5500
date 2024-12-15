@@ -288,6 +288,93 @@ const getRestaurants = async (req, res) => {
   }
 };
 
+const addUserFavoriteOrBookmark = async (req, res) => {
+  try {
+    const { user_id, business_id, status } = req.body;
+
+    if (!user_id || !business_id) {
+      return res.status(400).json({
+        error: 'user_id and business_id are required.',
+      });
+    }
+
+    if (status === null) {
+      // Delete bookmark if status is null
+      const deleteQuery = `
+        DELETE FROM user_favorites
+        WHERE user_id = $1 AND business_id = $2;
+      `;
+      await connection.query(deleteQuery, [user_id, business_id]);
+      return res.status(200).json({ message: 'Bookmark removed successfully.' });
+    }
+
+    // Generate new favorite_id
+    const getMaxFavoriteIdQuery = `
+      SELECT COALESCE(MAX(favorite_id), 0) AS max_id FROM user_favorites;
+    `;
+    const maxIdResult = await connection.query(getMaxFavoriteIdQuery);
+    const nextFavoriteId = maxIdResult.rows[0].max_id + 1;
+
+    // Add a new bookmark
+    const insertQuery = `
+      INSERT INTO user_favorites (favorite_id, user_id, business_id, status, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, business_id)
+      DO UPDATE SET status = EXCLUDED.status, created_at = NOW();
+    `;
+    console.log('Executing Query:', insertQuery);
+
+    await connection.query(insertQuery, [nextFavoriteId, user_id, business_id, status]);
+
+    res.status(201).json({ message: 'Bookmark added successfully.' });
+  } catch (error) {
+    console.error('Error handling bookmark:', error.message, error.stack);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getBookmarks = async (req, res) => {
+  try {
+    const { user_id } = req.query;
+
+    console.log('Received user_id:', user_id); // Verify input from frontend
+
+    if (!user_id) {
+      console.error('No user_id provided');
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const query = `
+      SELECT 
+        b.business_id, 
+        b.name, 
+        bl.city, 
+        b.review_count, 
+        b.stars
+      FROM 
+        user_favorites uf
+      INNER JOIN 
+        normalized_businesses b 
+        ON uf.business_id = b.business_id
+      INNER JOIN 
+        business_locations bl 
+        ON b.location_id = bl.location_id
+      WHERE 
+        uf.user_id = $1 
+        AND uf.status = 'want to visit';
+    `;
+
+    const result = await connection.query(query, [user_id]);
+
+    console.log('Query Result:', result.rows); // Log results to debug
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching bookmarks:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch bookmarks.' });
+  }
+};
+
 const getRestaurantDetails = async (req, res) => {
   const { business_id } = req.query;
 
@@ -621,27 +708,40 @@ const mostHelpfulReviews = async (req, res) => {
 // Route 1: Top 5 cities in Pennsylvania with the highest number of diverse high-rated restaurants
 const topCitiesDiverseHighRated = async (req, res) => {
   const query = `
-      WITH HighRatedRestaurants AS (
-         SELECT b.business_id, bl.city, AVG(r.stars) AS avg_rating
-         FROM normalized_businesses b
-         JOIN normalized_user_reviews r ON b.business_id = r.business_id
-         JOIN business_locations bl ON b.location_id = bl.location_id
-         WHERE bl.state = 'PA'
-         GROUP BY b.business_id, bl.city
-         HAVING AVG(r.stars) >= 4.5
-      ),
-      DiverseCategories AS (
-         SELECT b.business_id, COUNT(DISTINCT b.categories) AS category_count
-         FROM normalized_businesses b
-         GROUP BY b.business_id
-         HAVING COUNT(DISTINCT b.categories) >= 3
-      )
-      SELECT hr.city, COUNT(hr.business_id) AS num_restaurants
-      FROM HighRatedRestaurants hr
-      JOIN DiverseCategories dc ON hr.business_id = dc.business_id
-      GROUP BY hr.city
-      ORDER BY num_restaurants DESC
-      LIMIT 5;
+      WITH HighRatedBusinesses AS (
+      SELECT b.business_id, bl.city
+      FROM normalized_businesses b
+      JOIN normalized_user_reviews r ON b.business_id = r.business_id
+      JOIN business_locations bl ON b.location_id = bl.location_id
+      WHERE bl.state = 'PA'
+      GROUP BY b.business_id, bl.city
+      HAVING AVG(r.stars) >= 4.0 -- Loosen threshold
+    ),
+    SplitCategories AS (
+      SELECT 
+        b.business_id, 
+        bl.city,
+        TRIM(UNNEST(STRING_TO_ARRAY(b.categories, ','))) AS category
+      FROM normalized_businesses b
+      JOIN business_locations bl ON b.location_id = bl.location_id
+      WHERE b.categories IS NOT NULL AND TRIM(b.categories) <> ''
+    ),
+    CityDiversity AS (
+      SELECT 
+        sc.city,
+        COUNT(DISTINCT sc.category) AS unique_categories, -- Count unique categories in each city
+        COUNT(DISTINCT sc.business_id) AS num_restaurants -- Count number of restaurants in each city
+      FROM SplitCategories sc
+      GROUP BY sc.city
+    )
+    SELECT 
+      cd.city, 
+      cd.num_restaurants, 
+      cd.unique_categories -- Include the unique categories directly
+    FROM CityDiversity cd
+    ORDER BY num_restaurants DESC
+    LIMIT 5;
+
   `;
   try {
       const result = await connection.query(query);
@@ -682,27 +782,34 @@ const topRestaurantsReviewedByUserFriends = async (req, res) => {
   }
 }
 
-const monthlyCheckinDistribution = async (req, res) => {
+const weeklyCheckinDistribution = async (req, res) => {
   const query = `
     WITH TotalCheckins AS (
-       SELECT c.business_id, COUNT(c.checkin_id) AS total_checkins
-       FROM normalized_checkin c
-       JOIN normalized_businesses b ON c.business_id = b.business_id
-       WHERE b.state = 'PA'
-       GROUP BY c.business_id
-       ORDER BY total_checkins DESC
-       LIMIT 5
-    ),
-    MonthlyCheckinDistribution AS (
-       SELECT tc.business_id, EXTRACT(MONTH FROM c.hour) AS checkin_month, COUNT(c.checkin_id) AS checkins_in_month
-       FROM normalized_checkin c
-       JOIN TotalCheckins tc ON c.business_id = tc.business_id
-       GROUP BY tc.business_id, EXTRACT(MONTH FROM c.hour)
-    )
-    SELECT b.name AS restaurant_name, mcd.checkin_month, mcd.checkins_in_month
-    FROM MonthlyCheckinDistribution mcd
-    JOIN normalized_businesses b ON mcd.business_id = b.business_id
-    ORDER BY restaurant_name, mcd.checkin_month;
+    SELECT 
+      c.business_id, 
+      COUNT(c.checkin_id) AS total_checkins
+    FROM normalized_checkin c
+    GROUP BY c.business_id
+    ORDER BY total_checkins DESC
+    LIMIT 5
+  ),
+  WeeklyCheckinDistribution AS (
+    SELECT 
+      tc.business_id, 
+      c.weekday AS checkin_weekday, 
+      SUM(c.checkins) AS total_checkins
+    FROM normalized_checkin c
+    JOIN TotalCheckins tc ON c.business_id = tc.business_id
+    GROUP BY tc.business_id, c.weekday
+  )
+  SELECT 
+    b.name AS restaurant_name, 
+    wcd.checkin_weekday, 
+    wcd.total_checkins
+  FROM WeeklyCheckinDistribution wcd
+  JOIN normalized_businesses b ON wcd.business_id = b.business_id
+  ORDER BY restaurant_name, wcd.checkin_weekday;
+
   `;
   try {
     const result = await connection.query(query);
@@ -712,7 +819,6 @@ const monthlyCheckinDistribution = async (req, res) => {
     res.status(500).send('Error fetching monthly check-in distribution');
   }
 };
-
 
 const happiestCity = async (req, res) => {
   const query = `
@@ -734,15 +840,150 @@ const happiestCity = async (req, res) => {
     )
     SELECT city, ROUND(avg_sentiment, 2) AS average_star_rating
     FROM CityReviewSentiment
-    ORDER BY avg_sentiment DESC
-    LIMIT 1;
+    ORDER BY avg_sentiment DESC;
   `;
+
   try {
     const result = await connection.query(query);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching happiest city:', error);
-    res.status(500).send('Error fetching happiest city');
+    console.error('Error fetching happiest cities:', error);
+    res.status(500).send('Error fetching happiest cities');
+  }
+};
+
+const getCuisinePercentages = async (req, res) => {
+  const { city } = req.query;
+
+  if (!city) {
+    return res.status(400).send('City parameter is required');
+  }
+
+  const query = `
+    WITH CityCuisines AS (
+      SELECT b.cuisine, COUNT(*) AS count
+      FROM business_locations l
+      JOIN normalized_businesses b ON l.location_id = b.location_id
+      WHERE l.city = $1
+      GROUP BY b.cuisine
+    ),
+    TotalCuisines AS (
+      SELECT SUM(count) AS total
+      FROM CityCuisines
+    )
+    SELECT c.cuisine, ROUND((c.count * 100.0 / t.total), 2) AS percentage
+    FROM CityCuisines c, TotalCuisines t
+    ORDER BY percentage DESC;
+  `;
+
+  try {
+    const result = await connection.query(query, [city]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching cuisine percentages:', error);
+    res.status(500).send('Internal Server Error');
+  }
+};
+
+const sentimentDistribution = async (req, res) => {
+  const query = `
+    WITH restaurant_sentiment AS (
+      SELECT 
+        b.business_id,
+        b.name AS restaurant_name,
+        r.user_id,
+        AVG(r.stars) AS avg_rating
+      FROM 
+        normalized_user_reviews r
+      JOIN 
+        normalized_businesses b ON r.business_id = b.business_id
+      JOIN 
+        business_locations bl ON b.location_id = bl.location_id
+      WHERE bl.state = 'PA' -- Filter restaurants in Pennsylvania
+      GROUP BY 
+        b.business_id, b.name, r.user_id
+    ),
+    dislikes AS (
+      SELECT 
+        rs.business_id,
+        rs.restaurant_name,
+        COUNT(rs.user_id) AS num_dislikes
+      FROM 
+        restaurant_sentiment rs
+      WHERE 
+        rs.avg_rating < 3
+      GROUP BY 
+        rs.business_id, rs.restaurant_name
+    ),
+    neutral AS (
+      SELECT 
+        rs.business_id,
+        rs.restaurant_name,
+        COUNT(rs.user_id) AS num_neutral
+      FROM 
+        restaurant_sentiment rs
+      WHERE 
+        rs.avg_rating = 3
+      GROUP BY 
+        rs.business_id, rs.restaurant_name
+    ),
+    loves AS (
+      SELECT 
+        rs.business_id,
+        rs.restaurant_name,
+        COUNT(rs.user_id) AS num_loves
+      FROM 
+        restaurant_sentiment rs
+      WHERE 
+        rs.avg_rating > 4
+      GROUP BY 
+        rs.business_id, rs.restaurant_name
+    ),
+    sentiment_combined AS (
+      SELECT 
+        COALESCE(d.business_id, n.business_id, l.business_id) AS business_id,
+        COALESCE(d.restaurant_name, n.restaurant_name, l.restaurant_name) AS restaurant_name,
+        COALESCE(d.num_dislikes, 0) AS num_dislikes,
+        COALESCE(n.num_neutral, 0) AS num_neutral,
+        COALESCE(l.num_loves, 0) AS num_loves
+      FROM 
+        dislikes d
+      FULL OUTER JOIN 
+        neutral n ON d.business_id = n.business_id
+      FULL OUTER JOIN 
+        loves l ON COALESCE(d.business_id, n.business_id) = l.business_id
+    ),
+    top_10_restaurants AS (
+      SELECT 
+        b.business_id,
+        b.name AS restaurant_name,
+        sc.num_dislikes,
+        sc.num_neutral,
+        sc.num_loves
+      FROM 
+        sentiment_combined sc
+      JOIN 
+        normalized_businesses b ON sc.business_id = b.business_id
+      ORDER BY 
+        b.review_count DESC
+      LIMIT 10
+    )
+    SELECT 
+      business_id,
+      restaurant_name,
+      num_dislikes,
+      num_neutral,
+      num_loves
+    FROM 
+      top_10_restaurants;
+  `;
+
+  try {
+    const result = await connection.query(query);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching sentiment distribution:', error);
+    res.status(500).json({ error: 'Failed to fetch sentiment distribution' });
   }
 };
 
@@ -842,7 +1083,7 @@ module.exports = {
   citiesWithOutdoorSeating,
   mostHelpfulReviews,
   averageCheckins,
-  monthlyCheckinDistribution,
+  weeklyCheckinDistribution,
   happiestCity,
   openRestaurantsNow,
   restaurantsWithAmenities,
@@ -856,6 +1097,11 @@ module.exports = {
   getRestaurants,
   getRestaurantDetails,
   getBusinessNames,
+  getCuisinePercentages,
+  sentimentDistribution,
+  addUserFavoriteOrBookmark,
+  //getRestaurantsByIds,
+  getBookmarks,
   postReview,
   sample: async (req, res) => res.status(200).json({ key: 'value' }),
 }

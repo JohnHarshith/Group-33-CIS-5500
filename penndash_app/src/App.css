@@ -22,8 +22,10 @@
 
 .App-header {
   background-color: #282c34;
-  padding: 10px;
+  padding: 5px; /* Reduced padding */
   color: white;
+  font-size: 1.2rem; /* Adjust font size for a smaller appearance */
+  font-weight: bold; /* Keep text bold for readability */
 }
 
 /* .App-footer {
