@@ -528,6 +528,35 @@ const getRestaurantSummary = async (req, res) => {
   }
 };
 
+const postUserReview = async (req, res) => {
+  const { user_id, business_id, stars, review_text } = req.body;
+
+  // Validate required fields
+  if (!user_id || !business_id || !stars || !review_text) {
+    return res.status(400).json({ error: 'user_id, business_id, stars, and review_text are required.' });
+  }
+
+  try {
+    // Generate a unique review_id using UUID
+    const review_id = uuidv4();
+
+    // Insert the review into the database
+    const query = `
+      INSERT INTO normalized_user_reviews (review_id, user_id, business_id, stars, review_text, review_date)
+      VALUES ($1, $2, $3, $4, $5, NOW());
+    `;
+
+    await connection.query(query, [review_id, user_id, business_id, stars, review_text]);
+
+    // Respond with the new review ID
+    res.status(201).json({ message: 'Review added successfully.', review_id });
+  } catch (error) {
+    console.error('Error adding review:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to add review.' });
+  }
+};
+
+
 const getReviewsByBusinessId = async (req, res) => {
   const { business_id } = req.query;
 
@@ -1329,6 +1358,7 @@ module.exports = {
   postReview,
   getRestaurantSummary,
   getReviewsByBusinessId,
+  postUserReview,
   sample: async (req, res) => res.status(200).json({ key: 'value' }),
 }
 
