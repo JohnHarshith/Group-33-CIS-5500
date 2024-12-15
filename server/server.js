@@ -40,14 +40,20 @@ app.get('/average-checkins', routes.averageCheckins);
 // Complex
 app.get('/top-cities-diverse-high-rated-restaurants', routes.topCitiesDiverseHighRated);
 app.get('/top-restaurants-reviewed-by-user-friends', routes.topRestaurantsReviewedByUserFriends)
-app.get('/monthly-checkin-distribution', routes.monthlyCheckinDistribution);
+app.get('/weekly-checkin-distribution', routes.weeklyCheckinDistribution);
 app.get('/happiest-city', routes.happiestCity);
+app.get('/getCuisinePercentages', routes.getCuisinePercentages);
+app.get('/sentiment-distribution', routes.sentimentDistribution);
 
 //Additional
 app.get('/restaurants-open-now', routes.openRestaurantsNow);
 app.get('/restaurants-with-amenities', routes.restaurantsWithAmenities);
 app.post('/add-review', routes.addReview);
 app.post('/add-checkin', routes.addCheckin);
+app.post('/add-userfav-bookmarks', routes.addUserFavoriteOrBookmark);
+app.get('/bookmarks', routes.getBookmarks);
+//app.get('/getRestaurantsByIds', routes.getRestaurantsByIds);
+
 
 // Authentication
 app.post('/register', routes.registerUser); 

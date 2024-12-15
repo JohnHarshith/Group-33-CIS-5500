@@ -4,6 +4,9 @@ import LoginRegister from './components/loginregister/loginregister';
 import './App.css';
 import Home from './components/home/home';
 import Logout from './components/logout/logout';
+import Analytics from './components/analytics/analytics';
+import Bookmarks from './components/bookmarks/bookmarks';
+import RestaurantPage from './components/restaurantpage/restaurantpage';
 
 function App() {
   return (
@@ -19,6 +22,9 @@ function App() {
           <Route path="/" element={<LoginRegister />} />
           <Route path="/home" element={<Home />} />
           <Route path="/logout" element={<Logout />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/bookmarks" element={<Bookmarks />} />
+          <Route path="/restaurantpage" element={<RestaurantPage />} />
         </Routes>
 
         {/* Footer */}

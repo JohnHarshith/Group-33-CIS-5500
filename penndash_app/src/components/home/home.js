@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import RcSlider from 'rc-slider';
+import 'rc-slider/assets/index.css';
 import Select from 'react-select';
-import { FaUser, FaHeart, FaSignOutAlt, FaStar } from 'react-icons/fa';
+import { FaUser, FaHeart, FaSignOutAlt, FaBookmark } from 'react-icons/fa';
 import {
   Wrapper,
   Header,
@@ -45,18 +47,17 @@ const Home = () => {
   const [selectedAmenity, setSelectedAmenity] = useState([]);
   const [reviewCount, setReviewCount] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
+  const [reviewRange, setReviewRange] = useState([0, 2000]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const restaurantsPerPage = 9; // Number of cards per page
   const [favorites, setFavorites] = useState({});
-  const amenityOptions = [
-    { value: 'wifi', label: 'WiFi' },
-    { value: 'parking', label: 'Parking' },
-    { value: 'outdoor_seating', label: 'Outdoor Seating' },
-  ];
+  const [bookmarks, setBookmarks] = useState({});
 
   const [cities, setCities] = useState([]);
   const [cuisines, setCuisines] = useState([]);
+
+  const user_id = localStorage.getItem('user_id');
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -84,6 +85,57 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    const fetchBookmarks = async () => {
+      const user_id = localStorage.getItem('user_id'); // Get logged-in user's ID
+      if (!user_id) return;
+  
+      try {
+        const response = await fetch(`http://localhost:8080/bookmarks?user_id=${user_id}`);
+        const data = await response.json(); // Array of business_id
+        const bookmarksMap = data.reduce((acc, id) => {
+          acc[id] = true; // Mark each business_id as bookmarked
+          return acc;
+        }, {});
+        setBookmarks(bookmarksMap); // Update state with bookmarked businesses
+      } catch (error) {
+        console.error('Failed to fetch bookmarks:', error);
+      }
+    };
+  
+    fetchBookmarks();
+  }, []);
+
+  const handleBookmarkClick = async (business_id) => {
+    try {
+      const user_id = localStorage.getItem('user_id'); // Get logged-in user's ID from local storage
+      if (!user_id) {
+        console.error('User is not logged in.');
+        return;
+      }
+  
+      const isBookmarked = bookmarks[business_id];
+      const status = isBookmarked ? null : 'want to visit'; // Toggle status
+  
+      const response = await fetch('http://localhost:8080/add-userfav-bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id, business_id, status }),
+      });
+  
+      if (response.ok) {
+        setBookmarks((prev) => ({
+          ...prev,
+          [business_id]: !isBookmarked,
+        }));
+      } else {
+        console.error('Failed to update bookmark:', await response.json());
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+    }
+  };
+
+  useEffect(() => {
     const fetchRestaurants = async () => {
       try {
         const queryParams = new URLSearchParams({
@@ -91,7 +143,6 @@ const Home = () => {
           limit: restaurantsPerPage,
           city: selectedCity.map((city) => city.value).join(','),
           cuisine: selectedCuisine.map((cuisine) => cuisine.value).join(','),
-          amenities: selectedAmenity.map((amenity) => amenity.value).join(','),
           reviews: reviewCount,
           stars: sliderValue,
         });
@@ -135,24 +186,45 @@ const Home = () => {
 
   const handleApplyFilters = () => {
     const filtered = restaurants.filter((restaurant) => {
-      return (
-        (!selectedCity.length || selectedCity.some((city) => city.value === restaurant.city)) &&
-        (!selectedCuisine.length || selectedCuisine.some((cuisine) => cuisine.value === restaurant.cuisine)) &&
-        (!selectedAmenity.length || selectedAmenity.every((amenity) => restaurant.amenities.includes(amenity.value))) &&
-        restaurant.stars >= sliderValue
-      );
+        return (
+            (!selectedCity.length || 
+              selectedCity.some((city) => city.value === restaurant.city)) &&
+            (!selectedCuisine.length || 
+              selectedCuisine.some((cuisine) => cuisine.value === restaurant.cuisine)) &&
+            restaurant.stars >= sliderValue &&
+            restaurant.review_count >= reviewRange[0] && // Minimum review count
+            restaurant.review_count <= reviewRange[1]   // Maximum review count
+        );
     });
     setFilteredRestaurants(filtered);
     setCurrentPage(1);
   };
 
+
   const resetFilters = () => {
+    // Reset states to original values
     setSelectedCity([]);
     setSelectedCuisine([]);
     setSelectedAmenity([]);
-    setReviewCount(0);
+    setReviewRange([0, 2000]);
     setSliderValue(0);
     setCurrentPage(1);
+  
+    // Change the button color to black temporarily
+    const resetButton = document.getElementById('resetButton');
+    if (resetButton) {
+      resetButton.style.backgroundColor = 'black';
+      resetButton.style.color = 'white';
+      resetButton.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+    }
+  
+    // Optionally revert the color back to its default style after a delay
+    setTimeout(() => {
+      if (resetButton) {
+        resetButton.style.backgroundColor = '';
+        resetButton.style.color = '';
+      }
+    }, 300); // Adjust the delay as needed
   };
 
   const totalPages = Math.ceil(filteredRestaurants.length / restaurantsPerPage);
@@ -269,30 +341,60 @@ const Home = () => {
 
   return (
     <Wrapper>
-      <Header>
-        <Profile ref={profileRef}>
-          <ProfileDetails onClick={toggleProfileDropdown}>
-            <ProfileName>{username}</ProfileName>
-            <Arrow>▼</Arrow>
-          </ProfileDetails>
-          {profileDropdownVisible && (
-            <ProfileDropdown>
-              <DropdownItem>
-                <FaUser style={{ marginRight: '10px' }} />
-                Profile
-              </DropdownItem>
-              <DropdownItem>
-                <FaHeart style={{ marginRight: '10px' }} />
-                Favorites
-              </DropdownItem>
-              <DropdownItem onClick={handleLogout}>
-                <FaSignOutAlt style={{ marginRight: '10px' }} />
-                Logout
-              </DropdownItem>
-            </ProfileDropdown>
-          )}
-        </Profile>
-      </Header>
+    <Header>
+      {/* Analytics Button */}
+      <ApplyButton
+      style={{
+        marginLeft: '1260px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        padding: '10px 20px',
+        borderRadius: '25px', // Rounded corners
+        background: 'linear-gradient(90deg, #3b82f6, #9333ea)', // Blue to purple gradient
+        color: 'white',
+        fontWeight: 'bold',
+        boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)', // Subtle shadow
+        transition: 'transform 0.2s, box-shadow 0.2s', // Smooth hover animations
+      }}
+      onClick={() => navigate('/analytics')}
+      onMouseEnter={(e) => {
+        e.target.style.transform = 'scale(1.05)';
+        e.target.style.boxShadow = '0px 6px 8px rgba(0, 0, 0, 0.2)';
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.transform = 'scale(1)';
+        e.target.style.boxShadow = '0px 4px 6px rgba(0, 0, 0, 0.1)';
+      }}
+    >
+      Analytics
+    </ApplyButton>
+      <Profile ref={profileRef}>
+        <ProfileDetails onClick={toggleProfileDropdown}>
+          <ProfileName>{username}</ProfileName>
+          <Arrow>▼</Arrow>
+        </ProfileDetails>
+        {profileDropdownVisible && (
+          <ProfileDropdown>
+            <DropdownItem onClick={() => navigate('/profile')}>
+              <FaUser style={{ marginRight: '10px' }} />
+              Profile
+            </DropdownItem>
+            <DropdownItem onClick={() => navigate('/favorites')}>
+              <FaHeart style={{ marginRight: '10px' }} />
+              Favorites
+            </DropdownItem>
+            <DropdownItem onClick={() => navigate('/bookmarks')}>
+              <FaBookmark style={{ marginRight: '10px' }} />
+              Bookmarks
+            </DropdownItem>
+            <DropdownItem onClick={handleLogout}>
+              <FaSignOutAlt style={{ marginRight: '10px' }} />
+              Logout
+            </DropdownItem>
+          </ProfileDropdown>
+        )}
+      </Profile>
+    </Header>
       <MainContent>
         <Filters>
           <SelectWrapper>
@@ -313,15 +415,6 @@ const Home = () => {
               onChange={(selected) => setSelectedCuisine(selected || [])}
             />
           </SelectWrapper>
-          <SelectWrapper>
-            <Select
-              options={amenityOptions}
-              isMulti
-              placeholder="Select Amenities"
-              value={selectedAmenity}
-              onChange={(selected) => setSelectedAmenity(selected || [])}
-            />
-          </SelectWrapper>
           <SliderWrapper>
             <SliderLabel>Stars: {sliderValue}</SliderLabel>
             <Slider
@@ -334,25 +427,34 @@ const Home = () => {
             />
           </SliderWrapper>
           <SliderWrapper>
-            <SliderLabel>Review Count: {reviewCount}</SliderLabel>
-            <Slider
-              type="range"
-              min="0"
-              max="2000"
-              step="100"
-              value={reviewCount}
-              onChange={(e) => setReviewCount(parseInt(e.target.value))}
+            <SliderLabel>Number of Reviews: {`${reviewRange[0]} - ${reviewRange[1]}`}</SliderLabel>
+            <RcSlider
+              range
+              min={0}
+              max={2000}
+              step={50}
+              value={reviewRange}
+              onChange={(value) => setReviewRange(value)}
             />
           </SliderWrapper>
           <ApplyButton onClick={handleApplyFilters}>Apply Filters</ApplyButton>
-          <ApplyButton onClick={resetFilters}>Reset Filters</ApplyButton>
+          <ApplyButton id="resetButton" onClick={resetFilters}> Reset Filters</ApplyButton>
         </Filters>
         <RestaurantList>
           {currentRestaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.business_id}>
               <IconWrapper>
-                <Icon onClick={() => handleHeartClick(restaurant.business_id)} favorite={favorites[restaurant.business_id]}>
+                <Icon 
+                  onClick={() => handleHeartClick(restaurant.business_id)} 
+                  favorite={favorites[restaurant.business_id]}
+                >
                   <FaHeart />
+                </Icon>
+                <Icon
+                  favorite={bookmarks[restaurant.business_id] || false}
+                  onClick={() => handleBookmarkClick(restaurant.business_id)}
+                >
+                  <FaBookmark style={{ color: bookmarks[restaurant.business_id] ? 'blue' : 'lightgray' }}/>
                 </Icon>
               </IconWrapper>
               <RestaurantName>{restaurant.name}</RestaurantName>
