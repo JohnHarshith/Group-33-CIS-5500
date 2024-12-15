@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FaMapMarkerAlt, FaPen, FaHeart, FaBookmark, FaRegStar, FaStar } from 'react-icons/fa';
 import {
   Wrapper,
@@ -17,6 +18,7 @@ import {
 } from './favorites.styled';
 
 const Favorites = () => {
+  const navigate = useNavigate();
   const [favoriteRestaurants, setFavoriteRestaurants] = useState([]);
   const [favorites, setFavorites] = useState({});
   const [bookmarks, setBookmarks] = useState({});
@@ -54,7 +56,7 @@ const Favorites = () => {
     };
 
     fetchFavorites();
-    fetchBookmarks();
+    // fetchBookmarks();
   }, [user_id]);
 
   // Handle favorite and bookmark toggle
@@ -92,8 +94,10 @@ const Favorites = () => {
 
   // Generate image path based on cuisine
   const getCuisineImage = (cuisine) => {
+    console.log(cuisine);
     const folderName = cuisine?.toLowerCase().replace(/\s+/g, '-') || 'default';
     const randomImageNumber = Math.floor(Math.random() * 3) + 1; // Random image 1-3
+    console.log(`/images/cuisines/${folderName}/${randomImageNumber}.jpg`);
     return `/images/cuisines/${folderName}/${randomImageNumber}.jpg`;
   };
 
@@ -137,7 +141,7 @@ const Favorites = () => {
               {/* Header */}
               <RestaurantHeader>
                 <div>
-                  <RestaurantName>
+                  <RestaurantName onClick={() => navigate('/restaurantPage', { state: { business_id: restaurant.business_id } })}>
                     {restaurant.name.replace(/['"]+/g, '')}
                     <RestaurantStatus>{restaurant.isOpen ? '' : 'Closed'}</RestaurantStatus>
                   </RestaurantName>

@@ -22,6 +22,22 @@ export const Header = styled.div`
     color: #666;
   }
 `;
+export const ApplyButton = styled.button`
+  background: black;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  &:hover {
+    background: #333;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+`;
 
 export const Section = styled.section`
   margin-bottom: 20px;

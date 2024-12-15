@@ -67,6 +67,8 @@ app.get('/getRestaurants', routes.getRestaurants);
 app.get('/getRestaurantDetails', routes.getRestaurantDetails);
 app.get('/getBusinessNames', routes.getBusinessNames);
 app.post('/postReview', routes.postReview);
+app.get('/getRestaurantSummary', routes.getRestaurantSummary);
+app.get('/getReviewsByBusinessId', routes.getReviewsByBusinessId);
 
 // Start the server
 const PORT = process.env.SERVER_PORT || 3000;

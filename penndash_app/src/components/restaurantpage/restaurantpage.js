@@ -1,65 +1,90 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { FaParking, FaWifi, FaWheelchair, FaTv, FaWineGlass, FaUsers, FaDollarSign } from 'react-icons/fa';
 import { Wrapper, Header, Section, AmenitiesGrid, AmenityCard, MapContainer, ReviewCard, ReviewSection, ReviewList } from './restaurantpage.styled';
-import { GoogleMap, Marker, LoadScript } from '@react-google-maps/api';
+import { GoogleMap, MarkerF, LoadScript } from '@react-google-maps/api';
 
 const RestaurantPage = () => {
+  const location = useLocation();
   const [restaurant, setRestaurant] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const business_id = '0EcCWB9_VxTOoAh_1Wr_RQ'; // Replace this dynamically as needed
+  const business_id = 'xoA1_vsxC0xD_fPgDZ2mbg'; // Replace dynamically as needed
 
   useEffect(() => {
-    const fetchRestaurantDetails = async () => {
+    console.log(location.state?.business_id)
+    const fetchData = async () => {
       try {
-        const response = await axios.get(`http://localhost:8080/getRestaurantDetails?business_id=${business_id}`);
-        setRestaurant(response.data);
+        const [restaurantResponse, reviewsResponse] = await Promise.all([
+          axios.get(`http://localhost:8080/getRestaurantSummary?business_id=${location.state?.business_id}`),
+          axios.get(`http://localhost:8080/getReviewsByBusinessId?business_id=${location.state?.business_id}`),
+        ]);
+        console.log(restaurantResponse.data);
+        setRestaurant(restaurantResponse.data);
+        setReviews(reviewsResponse.data);
       } catch (err) {
-        console.error('Failed to fetch restaurant details:', err);
+        console.error('Failed to fetch data:', err);
         setError('Failed to load data.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRestaurantDetails();
+    fetchData();
   }, []);
 
   if (loading) return <p>Loading...</p>;
   if (error || !restaurant) return <p>{error || 'No data available'}</p>;
 
+  const getCuisineImage = (cuisine) => {
+    // Default to 'default.png' if the cuisine is undefined
+    const folderName = cuisine?.toLowerCase().replace(/\s+/g, '-') || 'default';
+    const randomImageNumber = Math.floor(Math.random() * 3) + 1; // Random image between 1-3
+    return `/images/cuisines/${folderName}/${randomImageNumber}.jpg`;
+  };
+
   // Amenities with icons
   const amenities = [
-    { name: 'WiFi', available: restaurant.amenities.wifi, icon: <FaWifi /> },
-    { name: 'Outdoor Seating', available: restaurant.amenities.outdoor_seating, icon: <FaUsers /> },
-    { name: 'Parking Garage', available: restaurant.amenities.parking_garage, icon: <FaParking /> },
-    { name: 'Wheelchair Accessible', available: restaurant.amenities.wheelchair_accessible, icon: <FaWheelchair /> },
-    { name: 'Has TV', available: restaurant.amenities.has_tv, icon: <FaTv /> },
-    { name: 'Alcohol', available: restaurant.amenities.alcohol, icon: <FaWineGlass /> },
-    { name: 'Price Range', available: restaurant.amenities.price_range, icon: <FaDollarSign /> },
+    { name: 'WiFi', available: restaurant.amenities?.wifi, icon: <FaWifi /> },
+    { name: 'Outdoor Seating', available: restaurant.amenities?.outdoor_seating, icon: <FaUsers /> },
+    { name: 'Parking Garage', available: restaurant.amenities?.parking_garage || restaurant.amenities?.parking_validated || restaurant.amenities?.parking_street || restaurant.amenities?.parking_lot, icon: <FaParking /> },
+    { name: 'Wheelchair Accessible', available: restaurant.amenities?.wheelchair_accessible, icon: <FaWheelchair /> },
+    { name: 'Has TV', available: restaurant.amenities?.has_tv, icon: <FaTv /> },
+    { name: 'Alcohol', available: restaurant.amenities?.alcohol, icon: <FaWineGlass /> },
+    { name: 'Price Range', available: restaurant.amenities?.price_range, icon: <FaDollarSign /> },
   ];
 
   return (
     <Wrapper>
       <Header>
-        <h1>{restaurant.restaurant_name}</h1>
+      <img
+          src={getCuisineImage(restaurant.cuisine)}
+          alt={restaurant.cuisine}
+          style={{
+            width: '100%',
+            height: '300px',
+            objectFit: 'cover',
+            borderRadius: '10px 10px 10px 10px',
+          }}
+        />
+        <h1>{restaurant.restaurantName}</h1>
         <p>{restaurant.address}</p>
-        <p>Average Rating: {restaurant.stars}</p>
+        <p>Average Rating: {restaurant.avgRating}</p>
+        <p>{restaurant.isOpen ? 'Open Now' : 'Closed'}</p>
       </Header>
 
       {/* Google Maps Integration */}
       <MapContainer>
-        <LoadScript googleMapsApiKey="YOUR_GOOGLE_MAPS_API_KEY">
           <GoogleMap
             mapContainerStyle={{ width: '100%', height: '300px' }}
-            center={{ lat: 40.4406, lng: -79.9959 }} // Replace dynamically with real coordinates
+            center={{ lat: parseFloat(restaurant.latitude), lng: parseFloat(restaurant.longitude) }} // Replace dynamically with real coordinates
             zoom={15}
           >
-            <Marker position={{ lat: 40.4406, lng: -79.9959 }} />
+            <MarkerF position={{ lat: parseFloat(restaurant.latitude), lng: parseFloat(restaurant.longitude) }} />
           </GoogleMap>
-        </LoadScript>
       </MapContainer>
 
       {/* Categories */}
@@ -83,16 +108,21 @@ const RestaurantPage = () => {
 
       {/* Reviews */}
       <Section>
-         <h2>Reviews</h2>
-         <ReviewList>
-            {restaurant.reviews?.map((review, index) => (
-               <ReviewCard key={index}>
-               <h4>{review.user_name}</h4>
-               <p>⭐ {review.review_star}</p>
-               <p>{review.review_text}</p>
-               </ReviewCard>
-            )) || <p>No reviews available.</p>}
-         </ReviewList>
+        <h2>Reviews</h2>
+        <ReviewList>
+          {reviews.length > 0 ? (
+            reviews.map((review, index) => (
+              <ReviewCard key={index}>
+                <h4>{review.reviewerName}</h4>
+                <p>⭐ {review.rating}</p>
+                <p>{review.content}</p>
+                <p><small>{new Date(review.date).toLocaleDateString()}</small></p>
+              </ReviewCard>
+            ))
+          ) : (
+            <p>No reviews available.</p>
+          )}
+        </ReviewList>
       </Section>
     </Wrapper>
   );

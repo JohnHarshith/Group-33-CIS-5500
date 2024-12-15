@@ -350,6 +350,7 @@ const getBookmarks = async (req, res) => {
         b.name, 
         bl.city, 
         b.review_count, 
+        b.cuisine,
         b.stars
       FROM 
         user_favorites uf
@@ -391,7 +392,8 @@ const getFavorites = async (req, res) => {
         b.business_id, 
         b.name, 
         bl.city, 
-        b.review_count, 
+        b.review_count,
+        b.cuisine,
         b.stars
       FROM 
         user_favorites uf
@@ -414,6 +416,171 @@ const getFavorites = async (req, res) => {
   } catch (error) {
     console.error('Error fetching favorites:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to fetch favorites.' });
+  }
+};
+
+const getRestaurantSummary = async (req, res) => {
+  const { business_id } = req.query;
+
+  if (!business_id) {
+    return res.status(400).json({ error: 'business_id is required.' });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        nb.business_id AS "restaurantId",
+        nb.name AS restaurant_name,
+        CONCAT(bl.address, ', ', bl.city, ', ', bl.state, ', ', bl.postal_code) AS address,
+        bl.latitude as latitude,
+        bl.longitude as longitude,
+        nb.cuisine,
+        nb.review_count AS "reviewCount",
+        ARRAY(SELECT unnest(string_to_array(nb.categories, ';'))) AS "categories",
+        ROUND(AVG(nb.stars)::numeric, 2) AS "avgRating",
+        nb.stars,
+        json_build_object(
+          'wifi', nba.wifi,
+          'outdoor_seating', nba.outdoor_seating,
+          'parking_garage', nba.parking_garage,
+          'parking_street', nba.parking_street,
+          'parking_validated', nba.parking_validated,
+          'parking_lot', nba.parking_lot,
+          'parking_valet', nba.parking_valet,
+          'good_for_groups', nba.good_for_groups,
+          'alcohol', nba.alcohol,
+          'price_range', nba.price_range,
+          'noise_level', nba.noise_level,
+          'wheelchair_accessible', nba.wheelchair_accessible,
+          'has_tv', nba.has_tv
+        ) AS amenities,
+        json_agg(
+          json_build_object(
+            'day_of_week', nbh.day_of_week,
+            'open_time', nbh.open_time,
+            'close_time', nbh.close_time
+          ) ORDER BY nbh.day_of_week
+        ) AS business_hours
+      FROM 
+        normalized_businesses nb
+      JOIN 
+        business_locations bl
+      ON 
+        nb.location_id = bl.location_id
+      JOIN 
+        normalized_business_attributes nba
+      ON 
+        nb.business_id = nba.business_id
+      JOIN 
+        normalized_business_hours nbh
+      ON 
+        nb.business_id = nbh.business_id
+      WHERE 
+        nb.business_id = $1
+      GROUP BY 
+        nb.business_id, bl.address, bl.city, bl.state, bl.postal_code, bl.latitude, bl.longitude, nba.business_id;
+    `;
+
+    const result = await connection.query(query, [business_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found.' });
+    }
+
+    const currentESTTime = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const currentDay = new Date(currentESTTime).toLocaleDateString("en-US", { weekday: "long" });
+    const currentTime = new Date(currentESTTime).toTimeString().slice(0, 5);
+
+    const restaurant = result.rows[0];
+    let isOpen = false;
+
+    if (restaurant.businessHours) {
+      restaurant.businessHours.forEach(hour => {
+        if (hour.day_of_week.trim() === currentDay) {
+          if (currentTime >= hour.open_time && currentTime <= hour.close_time) {
+            isOpen = true;
+          }
+        }
+      });
+    }
+
+    const response = {
+      restaurantId: restaurant.restaurantId,
+      restaurantName: restaurant.restaurant_name,
+      reviewCount: restaurant.reviewCount,
+      address: restaurant.address,
+      categories: restaurant.categories,
+      avgRating: restaurant.avgRating,
+      cuisine: restaurant.cuisine,
+      stars: restaurant.stars,
+      amenities: restaurant.amenities,
+      business_hours: restaurant.business_hours,
+      isOpen,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      imageUrl: ""
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching restaurant summary:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch restaurant summary.' });
+  }
+};
+
+const getReviewsByBusinessId = async (req, res) => {
+  const { business_id } = req.query;
+
+  if (!business_id) {
+    return res.status(400).json({ error: 'business_id is required.' });
+  }
+
+  try {
+    const query = `
+      SELECT
+        u.username AS "reviewerName",
+        COUNT(r.user_id) OVER (PARTITION BY r.user_id) AS "reviewerReviewCount",
+        u.user_id AS "reviewerId",
+        r.stars AS "rating",
+        r.funny AS "funnyCount",
+        r.useful AS "usefulCount",
+        r.cool AS "coolCount",
+        r.review_text AS "content",
+        r.review_date AS "date"
+      FROM
+        normalized_user_reviews r
+      JOIN
+        users u
+      ON
+        r.user_id = u.user_id
+      WHERE
+        r.business_id = $1
+      ORDER BY
+        r.review_date DESC;
+    `;
+
+    const result = await connection.query(query, [business_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ error: 'No reviews found for the given business_id.' });
+    }
+
+    const reviews = result.rows.map(review => ({
+      reviewerName: review.reviewerName,
+      reviewerReviewCount: review.reviewerReviewCount,
+      reviewerId: review.reviewerId,
+      rating: review.rating,
+      funnyCount: review.funnyCount,
+      usefulCount: review.usefulCount,
+      coolCount: review.coolCount,
+      content: review.content,
+      date: review.date
+    }));
+
+    res.status(200).json(reviews);
+  } catch (error) {
+    console.error('Error fetching reviews:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch reviews.' });
   }
 };
 
@@ -1142,7 +1309,6 @@ module.exports = {
   citiesWithOutdoorSeating,
   mostHelpfulReviews,
   averageCheckins,
-  monthlyCheckinDistribution,
   happiestCity,
   openRestaurantsNow,
   restaurantsWithAmenities,
@@ -1161,6 +1327,8 @@ module.exports = {
   getFavorites,
   getBookmarks,
   postReview,
+  getRestaurantSummary,
+  getReviewsByBusinessId,
   sample: async (req, res) => res.status(200).json({ key: 'value' }),
 }
 

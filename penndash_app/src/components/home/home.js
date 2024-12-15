@@ -498,7 +498,7 @@ const Home = () => {
         </Filters>
         <RestaurantList>
           {currentRestaurants.map((restaurant) => (
-            <RestaurantCard key={restaurant.business_id}>
+            <RestaurantCard key={restaurant.business_id} >
               <img
                   src={getCuisineImage(restaurant.cuisine)}
                   alt={restaurant.cuisine}
@@ -511,7 +511,7 @@ const Home = () => {
                 />
               <RestaurantHeader>
               <div>
-              <RestaurantName>
+              <RestaurantName onClick={() => navigate('/restaurantPage', { state: { business_id: restaurant.business_id } })}>
                 {restaurant.name.replace(/['"]+/g, '')} {/* Remove single and double quotes */}
                 <RestaurantStatus>{restaurant.isOpen ? '' : 'Closed'}</RestaurantStatus>
               </RestaurantName>

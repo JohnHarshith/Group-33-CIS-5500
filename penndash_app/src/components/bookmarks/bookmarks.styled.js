@@ -1,10 +1,5 @@
 import styled from 'styled-components';
-
-export const Wrapper = styled.div`
-  font-family: 'Lato', sans-serif;
-  background: #f7f7f7;
-  min-height: 100vh;
-`;
+import { FaMapMarkerAlt, FaPen } from 'react-icons/fa'; // Import icons
 
 export const Header = styled.header`
   display: flex;
@@ -109,29 +104,6 @@ export const RestaurantList = styled.div`
   }
 `;
 
-export const RestaurantCard = styled.div`
-  background: white;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-  margin: 0 auto;
-  position: relative; /* Ensure icons can be positioned absolutely */
-`;
-
-export const RestaurantName = styled.div`
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 10px;
-`;
-
-export const RestaurantDetails = styled.div`
-  font-size: 14px;
-  color: #555;
-`;
-
 export const SliderWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -216,22 +188,6 @@ export const PageButton = styled.button`
   }
 `;
 
-export const IconWrapper = styled.div`
-  position: absolute;
-  top: 10px;
-  right: 10px;
-`;
-
-export const Icon = styled.div`
-  cursor: pointer;
-  font-size: 24px;
-
-  &:hover {
-    transform: scale(1.1);
-  }
-`;
-
-
 export const TabsWrapper = styled.div`
   display: flex;
   justify-content: center;
@@ -278,4 +234,111 @@ export const ProfileDetails = styled.div`
 export const ProfileName = styled.div`
   margin-right: 10px;
   font-size: 16px;
+`;
+
+
+// Wrapper for restaurant cards
+export const Wrapper = styled.div`
+  font-family: 'Lato', sans-serif;
+  background: #f7f7f7;
+  min-height: 100vh;
+`;
+
+// Name of the restaurant
+export const RestaurantName = styled.div`
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 10px;
+`;
+
+// Details section (Location, Reviews, etc.)
+export const RestaurantDetails = styled.div`
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+
+  svg {
+    margin-right: 6px;
+  }
+`;
+
+// Categories Wrapper
+export const CategoryWrapper = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+// Pastel colored Category tabs
+export const CategoryTab = styled.span`
+  background-color: ${(props) =>
+    ['#ffdab9', '#b0e0e6', '#ffd1dc', '#e6e6fa', '#f0e68c'][Math.floor(Math.random() * 5)]};
+  color: #555;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  border-radius: 15px;
+  text-transform: capitalize;
+`;
+
+export const RestaurantCard = styled.div`
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  position: relative; /* Ensures absolute positioning works within */
+  overflow: hidden;
+  text-align: left;
+
+  &:hover {
+    transform: translateY(-5px);
+    transition: all 0.3s ease;
+    box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+export const RestaurantHeader = styled.div`
+  display: flex;
+  justify-content: space-between; /* Space between name/closed and icons */
+  align-items: center;
+`;
+
+export const RestaurantStatus = styled.div`
+  color: red;
+  font-size: 13px;
+`;
+
+export const IconWrapper = styled.div`
+  display: flex;
+  gap: 10px;
+  right: 10px;
+  top: 10px;
+`;
+
+export const Icon = styled.div`
+  cursor: pointer;
+  color: ${(props) => (props.bookmarked ? 'blue' : props.favorite ? 'red' : '#ccc')};
+  font-size: 20px;
+
+  &:hover {
+    transform: scale(1.2);
+    transition: 0.2s;
+  }
+`;
+
+export const CuisineTab = styled.div`
+  display: inline-block;
+  background-color: black;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 5px 10px;
+  border-radius: 15px;
+  margin-right: 5px;
+  margin-top: 5px;
+  text-transform: capitalize; /* Makes the text title-case */
 `;
