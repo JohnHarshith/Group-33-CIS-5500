@@ -1,28 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Wrapper, RestaurantList, RestaurantCard, RestaurantName, RestaurantDetails } from './bookmarks.styled';
+import {
+  Wrapper,
+  RestaurantList,
+  RestaurantCard,
+  RestaurantName,
+  RestaurantDetails,
+} from './bookmarks.styled';
 
 const Bookmarks = () => {
   const [bookmarkedRestaurants, setBookmarkedRestaurants] = useState([]);
+  const user_id = localStorage.getItem('user_id'); // Fetch logged-in user's ID
 
+  // Fetch bookmarks on load
   useEffect(() => {
     const fetchBookmarks = async () => {
-      const user_id = localStorage.getItem('user_id'); // Logged-in user's ID
-
       try {
         const response = await fetch(`http://localhost:8080/bookmarks?user_id=${user_id}`);
         const data = await response.json();
-        setBookmarkedRestaurants(data); // API returns the bookmarked restaurant details
+        setBookmarkedRestaurants(data);
       } catch (error) {
         console.error('Failed to fetch bookmarks:', error);
       }
     };
 
     fetchBookmarks();
-  }, []);
+  }, [user_id]);
 
   return (
     <Wrapper>
-      <h1>Bookmarks</h1>
+      <h1>Your Bookmarked Restaurants</h1>
       {bookmarkedRestaurants.length > 0 ? (
         <RestaurantList>
           {bookmarkedRestaurants.map((restaurant) => (

@@ -220,18 +220,17 @@ export const IconWrapper = styled.div`
   position: absolute;
   top: 10px;
   right: 10px;
-  display: flex;
-  gap: 10px;
 `;
 
 export const Icon = styled.div`
   cursor: pointer;
-  color: ${(props) => (props.bookmarked ? 'gold' : props.favorite ? 'red' : '#ccc')};
-  font-size: 20px;
+  font-size: 24px;
+
   &:hover {
-    transform: scale(1.2);
+    transform: scale(1.1);
   }
 `;
+
 
 export const TabsWrapper = styled.div`
   display: flex;

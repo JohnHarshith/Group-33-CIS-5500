@@ -375,6 +375,49 @@ const getBookmarks = async (req, res) => {
   }
 };
 
+const getFavorites = async (req, res) => {
+  try {
+    const { user_id } = req.query;
+
+    console.log('Received user_id:', user_id); // Verify input from frontend
+
+    if (!user_id) {
+      console.error('No user_id provided');
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const query = `
+      SELECT 
+        b.business_id, 
+        b.name, 
+        bl.city, 
+        b.review_count, 
+        b.stars
+      FROM 
+        user_favorites uf
+      INNER JOIN 
+        normalized_businesses b 
+        ON uf.business_id = b.business_id
+      INNER JOIN 
+        business_locations bl 
+        ON b.location_id = bl.location_id
+      WHERE 
+        uf.user_id = $1 
+        AND uf.status = 'favorite';
+    `;
+
+    const result = await connection.query(query, [user_id]);
+
+    console.log('Query Result:', result.rows); // Log results to debug
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching favorites:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch favorites.' });
+  }
+};
+
+
 const getRestaurantDetails = async (req, res) => {
   const { business_id } = req.query;
 
@@ -1115,7 +1158,7 @@ module.exports = {
   getCuisinePercentages,
   sentimentDistribution,
   addUserFavoriteOrBookmark,
-  //getRestaurantsByIds,
+  getFavorites,
   getBookmarks,
   postReview,
   sample: async (req, res) => res.status(200).json({ key: 'value' }),

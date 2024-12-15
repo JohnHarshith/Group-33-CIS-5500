@@ -52,7 +52,7 @@ app.post('/add-review', routes.addReview);
 app.post('/add-checkin', routes.addCheckin);
 app.post('/add-userfav-bookmarks', routes.addUserFavoriteOrBookmark);
 app.get('/bookmarks', routes.getBookmarks);
-//app.get('/getRestaurantsByIds', routes.getRestaurantsByIds);
+app.get('/favorites', routes.getFavorites);
 
 
 // Authentication

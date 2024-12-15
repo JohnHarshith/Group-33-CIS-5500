@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import RcSlider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import Select from 'react-select';
-import { FaUser, FaHeart, FaSignOutAlt, FaBookmark } from 'react-icons/fa';
+import { FaUser, FaHeart, FaSignOutAlt, FaBookmark, FaMapMarkerAlt, FaPen, FaRegStar, FaStar } from 'react-icons/fa';
 import {
   Wrapper,
   Header,
@@ -28,8 +28,14 @@ import {
   PageButton,
   IconWrapper,
   Icon,
+  OpenStatus,
   StarRatingWrapper,
   Star,
+  RestaurantHeader,
+  RestaurantStatus, 
+  CuisineTab,
+  CategoryTab,
+  CategoryWrapper,
 } from './home.styled';
 
 const Home = () => {
@@ -91,12 +97,12 @@ const Home = () => {
   
       try {
         const response = await fetch(`http://localhost:8080/bookmarks?user_id=${user_id}`);
-        const data = await response.json(); // Array of business_id
-        const bookmarksMap = data.reduce((acc, id) => {
-          acc[id] = true; // Mark each business_id as bookmarked
+        const data = await response.json();
+        const bookmarksMap = data.reduce((acc, restaurant) => {
+          acc[restaurant.business_id] = true; // Store business_id as true
           return acc;
         }, {});
-        setBookmarks(bookmarksMap); // Update state with bookmarked businesses
+        setBookmarks(bookmarksMap); // Update state
       } catch (error) {
         console.error('Failed to fetch bookmarks:', error);
       }
@@ -104,18 +110,12 @@ const Home = () => {
   
     fetchBookmarks();
   }, []);
-
+  
   const handleBookmarkClick = async (business_id) => {
+    const isBookmarked = bookmarks[business_id];
+    const status = isBookmarked ? null : 'want to visit';
+  
     try {
-      const user_id = localStorage.getItem('user_id'); // Get logged-in user's ID from local storage
-      if (!user_id) {
-        console.error('User is not logged in.');
-        return;
-      }
-  
-      const isBookmarked = bookmarks[business_id];
-      const status = isBookmarked ? null : 'want to visit'; // Toggle status
-  
       const response = await fetch('http://localhost:8080/add-userfav-bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,7 +128,7 @@ const Home = () => {
           [business_id]: !isBookmarked,
         }));
       } else {
-        console.error('Failed to update bookmark:', await response.json());
+        console.error('Failed to update bookmark');
       }
     } catch (error) {
       console.error('Error toggling bookmark:', error);
@@ -164,6 +164,48 @@ const Home = () => {
     setProfileDropdownVisible(!profileDropdownVisible);
   };
 
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      try {
+        const response = await fetch(`http://localhost:8080/favorites?user_id=${user_id}`);
+        const data = await response.json();
+        const favoritesMap = data.reduce((acc, restaurant) => {
+          acc[restaurant.business_id] = true;
+          return acc;
+        }, {});
+        setFavorites(favoritesMap);
+      } catch (error) {
+        console.error('Failed to fetch favorites:', error);
+      }
+    };
+    fetchFavorites();
+  }, [user_id]);
+
+  // Toggle favorite status
+  const handleFavoriteClick = async (business_id) => {
+    const isFavorite = favorites[business_id];
+    const status = isFavorite ? null : 'favorite';
+
+    try {
+      const response = await fetch('http://localhost:8080/add-userfav-bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id, business_id, status }),
+      });
+
+      if (response.ok) {
+        setFavorites((prev) => ({
+          ...prev,
+          [business_id]: !isFavorite,
+        }));
+      } else {
+        console.error('Failed to update favorite status');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
   const handleOutsideClick = (event) => {
     if (profileRef.current && !profileRef.current.contains(event.target)) {
       setProfileDropdownVisible(false);
@@ -176,13 +218,6 @@ const Home = () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
   }, []);
-
-  const handleHeartClick = (id) => {
-    setFavorites((prevFavorites) => ({
-      ...prevFavorites,
-      [id]: !prevFavorites[id],
-    }));
-  };
 
   const handleApplyFilters = () => {
     const filtered = restaurants.filter((restaurant) => {
@@ -267,7 +302,21 @@ const Home = () => {
   };
 
   const renderStars = (stars) => {
-    return Array.from({ length: 5 }, (_, i) => <Star key={i} filled={i < stars} />);
+    const totalStars = 5; // Total stars (fixed)
+    const filledStars = Math.round(stars); // Round to nearest integer
+    return (
+      <div style={{ display: 'flex', gap: '2px' }}>
+        {Array.from({ length: totalStars }).map((_, index) => (
+          <span key={index}>
+            {index < filledStars ? (
+              <FaStar style={{ color: '#fcb900' }} /> // Yellow for filled stars
+            ) : (
+              <FaRegStar style={{ color: '#ccc' }} /> // Gray for empty stars
+            )}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -339,6 +388,13 @@ const Home = () => {
     currentPage * restaurantsPerPage
   );
 
+  const getCuisineImage = (cuisine) => {
+    // Default to 'default.png' if the cuisine is undefined
+    const folderName = cuisine?.toLowerCase().replace(/\s+/g, '-') || 'default';
+    const randomImageNumber = Math.floor(Math.random() * 3) + 1; // Random image between 1-3
+    return `/images/cuisines/${folderName}/${randomImageNumber}.jpg`;
+  };
+  
   return (
     <Wrapper>
     <Header>
@@ -443,30 +499,56 @@ const Home = () => {
         <RestaurantList>
           {currentRestaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.business_id}>
+              <img
+                  src={getCuisineImage(restaurant.cuisine)}
+                  alt={restaurant.cuisine}
+                  style={{
+                    width: '100%',
+                    height: '150px',
+                    objectFit: 'cover',
+                    borderRadius: '10px 10px 0 0',
+                  }}
+                />
+              <RestaurantHeader>
+              <div>
+              <RestaurantName>
+                {restaurant.name.replace(/['"]+/g, '')} {/* Remove single and double quotes */}
+                <RestaurantStatus>{restaurant.isOpen ? '' : 'Closed'}</RestaurantStatus>
+              </RestaurantName>
+              </div>
               <IconWrapper>
-                <Icon 
-                  onClick={() => handleHeartClick(restaurant.business_id)} 
-                  favorite={favorites[restaurant.business_id]}
+              <Icon
+                  favorite={favorites[restaurant.business_id] || false}
+                  onClick={() => handleFavoriteClick(restaurant.business_id)}
                 >
-                  <FaHeart />
-                </Icon>
-                <Icon
+                  <FaHeart style={{ color: favorites[restaurant.business_id] ? 'red' : 'lightgray' }} />
+              </Icon>
+               <Icon
                   favorite={bookmarks[restaurant.business_id] || false}
                   onClick={() => handleBookmarkClick(restaurant.business_id)}
                 >
                   <FaBookmark style={{ color: bookmarks[restaurant.business_id] ? 'blue' : 'lightgray' }}/>
                 </Icon>
               </IconWrapper>
-              <RestaurantName>{restaurant.name}</RestaurantName>
+              </RestaurantHeader>
               <RestaurantDetails>
-                <StarRatingWrapper>{renderStars(Math.round(restaurant.stars))}</StarRatingWrapper>
+                <FaMapMarkerAlt style={{ marginRight: '8px', color: '#3b82f6' }} />
+                {restaurant.city}
               </RestaurantDetails>
-              <RestaurantDetails>Location: {restaurant.city}</RestaurantDetails>
-              <RestaurantDetails>Reviews: {restaurant.review_count}</RestaurantDetails>
-              <RestaurantDetails>Categories: {restaurant.categories.join(', ')}</RestaurantDetails>
               <RestaurantDetails>
-                {restaurant.isOpen ? 'Open Now' : 'Closed'}
+                <FaPen style={{ marginRight: '8px', color: '#9333ea' }} />
+                {restaurant.review_count} Reviews
               </RestaurantDetails>
+              <RestaurantDetails>
+                {renderStars(restaurant.stars)}
+              </RestaurantDetails>
+              {/* Colorful Tabs for Categories */}
+              <CategoryWrapper>
+                {restaurant.cuisine && <CuisineTab>{restaurant.cuisine}</CuisineTab>}
+                {restaurant.categories.map((category, index) => (
+                  <CategoryTab key={index}>{category}</CategoryTab>
+                ))}
+              </CategoryWrapper>
             </RestaurantCard>
           ))}
         </RestaurantList>
