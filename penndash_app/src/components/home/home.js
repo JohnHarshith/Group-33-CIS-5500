@@ -431,10 +431,6 @@ const Home = () => {
         </ProfileDetails>
         {profileDropdownVisible && (
           <ProfileDropdown>
-            <DropdownItem onClick={() => navigate('/profile')}>
-              <FaUser style={{ marginRight: '10px' }} />
-              Profile
-            </DropdownItem>
             <DropdownItem onClick={() => navigate('/favorites')}>
               <FaHeart style={{ marginRight: '10px' }} />
               Favorites

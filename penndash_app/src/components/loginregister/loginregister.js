@@ -159,11 +159,6 @@ const LoginRegister = () => {
           )}
           <SubmitButton type="submit">{isLogin ? 'Login' : 'Register'}</SubmitButton>
         </form>
-        <IconButtonWrapper>
-          <IconButton>
-            <FcGoogle size={20} /> Sign in with Google
-          </IconButton>
-        </IconButtonWrapper>
         <SwitchText>
           {isLogin ? 'Not a member? ' : 'Already a member? '}
           <button

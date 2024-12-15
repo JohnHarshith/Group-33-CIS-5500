@@ -12,7 +12,7 @@ import { LoadScript } from '@react-google-maps/api';
 
 function App() {
   return (
-    <LoadScript googleMapsApiKey="API_KEY">
+    <LoadScript googleMapsApiKey="AIzaSyCsTHyEAShvYTyzSqJlj9AwJun6KYcobAU">
       <Router>
         <div className="App">
           {/* Navigation Bar */}
