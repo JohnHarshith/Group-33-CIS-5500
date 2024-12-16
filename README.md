@@ -56,5 +56,5 @@ Folder structure is as follows -
 ├── package.json                 # Root project metadata
 ```
 
-# Dataset: 
+# Dataset : 
 https://www.yelp.com/dataset
